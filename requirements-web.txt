@@ -1,0 +1,8 @@
+# Dependencies for the hosted web app only (smarty.web.*).
+# Deliberately does NOT include PySide6 -- the web process never imports
+# smarty.ui.main_window/app, so the desktop Qt stack has no business here.
+fastapi==0.162.2
+uvicorn[standard]==0.54.0
+jinja2==3.1.6
+python-multipart==0.0.33
+itsdangerous==2.2.0

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ tile_label }} - Smarty{% endblock %}
+{% block content %}
+  <p><a href="/">&larr; All tiles</a></p>
+  <h1 style="font-size:1.1em;">{{ tile_label }}</h1>
+  <form method="get" action="/tile/{{ tile_index }}">
+    <input class="search-box" type="search" name="q" value="{{ query }}" placeholder="Search title, id, summary, bot, notes...">
+  </form>
+  <ul class="record-list">
+    {% for row in rows %}
+      <li>
+        <a href="/record/{{ row.content_id }}?from_tile={{ tile_index }}">
+          <span class="status-badge status-{{ row.status }}">{{ row.status }}</span>
+          {{ row.title }}
+        </a>
+      </li>
+    {% endfor %}
+    {% if not rows %}<li style="color:#888;">Nothing here.</li>{% endif %}
+  </ul>
+{% endblock %}

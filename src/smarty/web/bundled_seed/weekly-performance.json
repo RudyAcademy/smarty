@@ -1,0 +1,337 @@
+{
+  "metadata": {
+    "schema_version": 1,
+    "prepared_on": "2026-11-07",
+    "timezone": "America/Toronto",
+    "provenance": "Supplied parent conversation; no web research",
+    "chronology_note": "Period-only received dates: display Oct 31–Nov 7, 2026; original discovery dates unknown. Title/ID tie-break is not discovery order.",
+    "privacy_note": "No private child/parent contacts, credentials, invented notes or approvals."
+  },
+  "records": [
+    {
+      "id": "sparky-performance-2026-11-07-johnny",
+      "kind": "weekly_performance",
+      "bot": "Johnny",
+      "title": "Johnny — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Monday through Saturday Scheduler and progress-file watchdog checks all passed.",
+      "caveats": [
+        "Relayed review only; underlying records not independently audited here.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-professor",
+      "kind": "weekly_performance",
+      "bot": "Professor",
+      "title": "Professor — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "v61 published Friday with matching hashes. Later geometry work remains unpublished and not release-ready; visual/coverage concerns remain.",
+      "caveats": [
+        "Local docs checked: Nov 6 publication at 2:59:25 PM EST. Combined geometry full suite 77/78 groups passed and nightly 319/322; one focused v53 assertion remained, and nightly failures were not cleared. Targeted passes do not supersede failed combined tests.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "documented_partial",
+      "sources": [
+        {
+          "path": "/workspace/professor/dev/dist/release_v61/PUBLICATION_STATUS.md",
+          "lines": "3–18"
+        },
+        {
+          "path": "/workspace/professor/dev/dist/v62_geometry_review/STATUS.md",
+          "lines": "67–80"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-bunny",
+      "kind": "weekly_performance",
+      "bot": "Bunny",
+      "title": "Bunny — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Record reports 412 reading-book photos copied and a 36-screen Lesson 1 walkthrough, with two screen gaps disclosed.",
+      "caveats": [
+        "Useful research, not proof the whole library is fully analysed; relayed report not independently audited.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-benji",
+      "kind": "weekly_performance",
+      "bot": "Benji",
+      "title": "Benji — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "User reported first customer-engagement task went well; workflow now uses SMS rather than check-in emails.",
+      "caveats": [
+        "Unresolved student-record conflicts need care; no independent outcome audit.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-steve",
+      "kind": "weekly_performance",
+      "bot": "Steve",
+      "title": "Steve — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Log records five approved catch-up SMS sends and an approved parent reply.",
+      "caveats": [
+        "Send activity is not proof recipients read them. Personal contacts excluded.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-bruno",
+      "kind": "weekly_performance",
+      "bot": "Bruno",
+      "title": "Bruno — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Personalized family reports underway; missing parent names and student aliases caused holds.",
+      "caveats": [
+        "Finding a correction does not confirm a previously missed report was subsequently sent.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-mark",
+      "kind": "weekly_performance",
+      "bot": "Mark",
+      "title": "Mark — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Supplied growth ideas and engagement proposals.",
+      "caveats": [
+        "Actual posting outcomes not fully verified.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-wilma",
+      "kind": "weekly_performance",
+      "bot": "Wilma",
+      "title": "Wilma — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Insufficient checked evidence to grade the week fairly.",
+      "caveats": [
+        "No full audit; unknown is not failure.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-cricket",
+      "kind": "weekly_performance",
+      "bot": "Cricket",
+      "title": "Cricket — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Insufficient checked evidence to grade the week fairly.",
+      "caveats": [
+        "No full audit; unknown is not failure.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    },
+    {
+      "id": "sparky-performance-2026-11-07-leo",
+      "kind": "weekly_performance",
+      "bot": "Leo",
+      "title": "Leo — weekly review",
+      "categories": [
+        "Weekly bots performance"
+      ],
+      "period": {
+        "start": "2026-10-31",
+        "end": "2026-11-07",
+        "granularity": "period",
+        "timezone": "America/Toronto",
+        "original_discovery_at": null
+      },
+      "summary": "Meeting review was late; scheduled run failed for unavailable usage and separate review ended in error. Recovered review was incomplete.",
+      "caveats": [
+        "Why purchased credits did not cover the failure remains unverified; do not infer monthly cap or credit balance cause.",
+        "Partial recovered review; not a complete audit."
+      ],
+      "verification_status": "relayed_unverified",
+      "sources": [
+        {
+          "record": "Leo Nov 7 weekly review in supplied parent context"
+        }
+      ],
+      "user_state": {
+        "status": "unreviewed",
+        "notes": "",
+        "approval": null
+      }
+    }
+  ]
+}

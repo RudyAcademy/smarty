@@ -1,0 +1,71 @@
+{
+  "categories": [
+    {
+      "id": "category-1",
+      "label": "Weekly bots performance",
+      "kind": "content_category",
+      "status_filter": null
+    },
+    {
+      "id": "category-2",
+      "label": "Growth and enrolment",
+      "kind": "content_category",
+      "status_filter": null
+    },
+    {
+      "id": "category-3",
+      "label": "New audiences and channels",
+      "kind": "content_category",
+      "status_filter": null
+    },
+    {
+      "id": "category-4",
+      "label": "Parent engagement and retention",
+      "kind": "content_category",
+      "status_filter": null
+    },
+    {
+      "id": "category-5",
+      "label": "Teaching–Professor ideas",
+      "kind": "content_category",
+      "status_filter": null
+    },
+    {
+      "id": "category-6",
+      "label": "Learning Dragon ideas",
+      "kind": "content_category",
+      "status_filter": null
+    },
+    {
+      "id": "category-7",
+      "label": "Miscellaneous",
+      "kind": "content_category",
+      "status_filter": null
+    },
+    {
+      "id": "category-8",
+      "label": "Rudy's collection",
+      "kind": "status_view",
+      "status_filter": "kept"
+    },
+    {
+      "id": "category-9",
+      "label": "Park it for later",
+      "kind": "status_view",
+      "status_filter": "parked"
+    },
+    {
+      "id": "category-10",
+      "label": "Rejected (recoverable)",
+      "kind": "status_view",
+      "status_filter": "rejected"
+    }
+  ],
+  "allowed_statuses": [
+    "unreviewed",
+    "kept",
+    "parked",
+    "rejected"
+  ],
+  "notes": "Single Parent engagement category; mutually exclusive statuses. Rejection recoverable, never physical delete; Teaching and Learning Dragon overlap permitted."
+}

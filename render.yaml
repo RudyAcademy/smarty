@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: smarty
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /login
+    envVars:
+      - key: SMARTY_WEB_PASSWORD
+        sync: false
+      - key: SMARTY_SYNC_TOKEN
+        sync: false
+      - key: SMARTY_SESSION_SECRET
+        generateValue: true
+      - key: SPARKY_DEVICE_LABEL
+        value: Cloud
+    disk:
+      name: smarty-data
+      mountPath: /data
+      sizeGB: 1

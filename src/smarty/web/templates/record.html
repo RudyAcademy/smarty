@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ record.title }} - Smarty{% endblock %}
+{% block content %}
+  <p><a href="/tile/{{ from_tile }}">&larr; Back to list</a></p>
+  <div class="card">
+    <h1>{{ record.title }}</h1>
+    <div class="meta">
+      id: {{ record.id }}<br>
+      {% if record.bots %}Bots: {{ record.bots }}<br>{% endif %}
+      Received period: {{ record.period_start or "?" }} to {{ record.period_end or "?" }}
+      (discovery time not recorded)<br>
+      {% if record.verification_status %}Verification status: {{ record.verification_status }}<br>{% endif %}
+    </div>
+    <p>{{ record.summary }}</p>
+    {% if record.advice_text %}
+      <p><b>Bot suggestion (not source evidence):</b> {{ record.advice_text }}</p>
+    {% endif %}
+    {% if record.kind == "idea" %}
+      {% if record.sources %}
+        <p>Sources (unverified):</p>
+        <ul>{% for s in record.sources %}<li>{{ s }} (unchecked)</li>{% endfor %}</ul>
+      {% else %}
+        <p><i>Sources: {{ record.missing_source_note or "no source URL on file" }}</i></p>
+      {% endif %}
+    {% endif %}
+    {% if record.caveats %}
+      <p>{{ record.caveats | join("<br>") | safe }}</p>
+    {% endif %}
+    {% if record.cautions %}
+      <div class="cautions">{{ record.cautions | join(" &middot; ") }}</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="status-row">
+      {% for s in statuses %}
+        <form class="inline" method="post" action="/record/{{ record.id }}/status">
+          <input type="hidden" name="from_tile" value="{{ from_tile }}">
+          <input type="hidden" name="status" value="{{ s }}">
+          {% if s == "rejected" and reject_armed %}
+            <input type="hidden" name="confirm" value="1">
+            <button type="submit" class="danger-armed">Confirm reject?</button>
+          {% else %}
+            <button type="submit" class="{{ 'active' if s == current_status else '' }}">{{ s }}</button>
+          {% endif %}
+        </form>
+      {% endfor %}
+    </div>
+    {% if status_conflict %}
+      <p class="cautions">Status conflict, not resolved: {{ status_conflict }}</p>
+    {% endif %}
+
+    <form method="post" action="/record/{{ record.id }}/notes">
+      <input type="hidden" name="from_tile" value="{{ from_tile }}">
+      <label>Notes (yours):</label>
+      <textarea name="notes">{{ notes }}</textarea>
+      <button type="submit">Save notes</button>
+    </form>
+
+    <form method="post" action="/record/{{ record.id }}/steps" style="margin-top:14px;">
+      <input type="hidden" name="from_tile" value="{{ from_tile }}">
+      <label>Practical steps (editable bot draft):</label>
+      <textarea name="practical_steps">{{ practical_steps }}</textarea>
+      <button type="submit">Save steps</button>
+    </form>
+  </div>
+{% endblock %}

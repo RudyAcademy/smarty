@@ -1,0 +1,82 @@
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif;
+  margin: 0;
+  background: #f5f5f3;
+  color: #1a1a1a;
+}
+header {
+  background: #111;
+  color: #fff;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header a { color: #fff; text-decoration: none; font-weight: 600; }
+header .logout { font-weight: 400; opacity: 0.8; font-size: 0.9em; }
+main { padding: 12px 14px 60px; max-width: 720px; margin: 0 auto; }
+.banner {
+  background: #fff6e0;
+  border: 1px solid #e0c060;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9em;
+  margin-bottom: 14px;
+}
+.tile-list, .record-list { list-style: none; margin: 0; padding: 0; }
+.tile-list li, .record-list li { margin-bottom: 8px; }
+.tile-list a, .record-list a {
+  display: block;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: #1a1a1a;
+  font-size: 1.05em;
+}
+.tile-list a:active, .record-list a:active { background: #eee; }
+.record-list .status-badge {
+  float: right;
+  font-size: 0.75em;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #eee;
+  color: #555;
+}
+.status-unreviewed { background: #eee; color: #666; }
+.status-kept { background: #d9f2d9; color: #1a6b1a; }
+.status-parked { background: #fdeccb; color: #8a5a00; }
+.status-rejected { background: #f6d9d9; color: #a31515; }
+.card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+.card h1 { font-size: 1.2em; margin: 0 0 6px; }
+.meta { font-size: 0.85em; color: #555; margin-bottom: 10px; }
+.cautions { font-size: 0.85em; color: #8a5a00; background: #fff6e0; padding: 8px 10px; border-radius: 8px; }
+textarea {
+  width: 100%;
+  min-height: 90px;
+  font-family: inherit;
+  font-size: 1em;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  margin-top: 6px;
+}
+.status-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+button, .btn {
+  font-size: 0.95em;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+button.active { background: #111; color: #fff; border-color: #111; }
+button.danger-armed { background: #a31515; color: #fff; border-color: #a31515; }
+form.inline { display: inline; }
+.search-box { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 12px; font-size: 1em; }
+.save-note { font-size: 0.8em; color: #777; margin-top: 4px; }
