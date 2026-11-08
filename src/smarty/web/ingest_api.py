@@ -93,6 +93,31 @@ def schema(request: Request):
             "Never touches existing notes or kept/parked/rejected status on any id, including one you "
             "resubmit -- those live in a separate journal this endpoint never writes to.",
         ],
+        "reverse_channel": {
+            "endpoint": "GET /api/feedback",
+            "auth": "Authorization: Bearer <same SMARTY_INGEST_TOKEN> (shared with /api/ingest; "
+            "revoking it cuts off both directions together, which is correct)",
+            "purpose": "Read Rudy's status/notes on ideas -- what got kept, parked, rejected, and why.",
+            "query_params": {
+                "status": "optional: unreviewed|kept|parked|rejected, filter to one status",
+                "include_all": "optional bool, default false: by default only reviewed records "
+                "(status set, or notes/practical_steps non-blank) are returned; true returns everything.",
+            },
+            "response_shape": {
+                "records": [
+                    {
+                        "id": "sparky-idea-<slug>",
+                        "kind": "idea | performance",
+                        "title": "...",
+                        "status": "unreviewed | kept | parked | rejected",
+                        "notes": "Rudy's own text, may be blank",
+                        "practical_steps": "edited bot-draft text, may be blank",
+                        "status_conflict": "present only if two devices set conflicting status and "
+                        "neither has been resolved yet",
+                    }
+                ]
+            },
+        },
     }
 
 

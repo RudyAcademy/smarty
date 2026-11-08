@@ -242,6 +242,19 @@ that id — the catalog cache and the journal are separate stores, so this
 is a structural guarantee, not something the endpoint has to special-case
 (covered by `tests/test_ingest.py::test_ingest_preserves_existing_notes_and_status_on_resubmission`).
 
+**Reverse channel — `GET /api/feedback`:** lets Grok-bot read back what
+Rudy decided: status (kept/parked/rejected/unreviewed) and notes per idea,
+read-only, reduced the same way the UI shows it (never a raw op log).
+Shares `SMARTY_INGEST_TOKEN` with `/api/ingest` on purpose — both
+directions belong to the same counterpart, so one token covers submitting
+ideas and reading feedback on them, and revoking it cuts off both at once.
+By default returns only records that have actually been reviewed (status
+set, or notes non-blank); `?include_all=true` returns everything, and
+`?status=kept` (etc.) filters to one status. Documented in the same
+`GET /api/ingest/schema` response, under `reverse_channel`. Covered by
+`tests/test_feedback.py`, including a full round trip: ingest an idea,
+review it through the web UI, read it back via `/api/feedback`.
+
 ## Imports after the seed
 
 `smarty.importer.apply_import_batch(cache, batch)` accepts a dict with
@@ -322,7 +335,7 @@ cd C:\TowerHill\Smarty
 python -m pytest tests -q
 ```
 
-**Result: 86 passed, 0 failed.** Covers: seed validation (missing fields,
+**Result: 94 passed, 0 failed.** Covers: seed validation (missing fields,
 invented scores rejected), journal conflict reduction (independent fields,
 supersession, divergent-edit conflicts kept until resolved, resolution
 clears them), store read/write round-trips, importer revision rules

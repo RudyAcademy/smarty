@@ -19,6 +19,7 @@ from starlette.status import HTTP_303_SEE_OTHER
 from smarty.models import STATUSES
 from smarty.version import APP_NAME, CATEGORIES_ORDER, STATUS_VIEWS_ORDER
 from smarty.web.auth import require_login, web_password
+from smarty.web.feedback_api import router as feedback_router
 from smarty.web.ingest_api import router as ingest_router
 from smarty.web.sync_api import router as sync_router
 from smarty.web.webstore import build_web_store
@@ -52,6 +53,7 @@ app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SMARTY_SESSION_
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.include_router(sync_router)
 app.include_router(ingest_router)
+app.include_router(feedback_router)
 
 TILES = [("category", label) for label in CATEGORIES_ORDER] + [
     ("status_view", key) for key in STATUS_VIEWS_ORDER
