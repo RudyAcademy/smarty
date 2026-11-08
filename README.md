@@ -167,6 +167,55 @@ shared NAS yourselves. No analytics, no cloud calls, no AI API calls.
   app just says so and keeps working locally — it never hangs the window
   and never creates `Data` on its own.
 
+## Web app (iPad / phone access)
+
+`src/smarty/web/` is a second, independent front end for the exact same
+logic (`store.py`, `journal.py`, `importer.py`, `view_model.py` — all
+Qt-free by design, which is what made this possible without duplicating
+any business logic). It's a small FastAPI app:
+
+- **Password-gated** (`SMARTY_WEB_PASSWORD`) — one shared password, not an
+  account system, required before any page loads.
+- **Mobile-friendly UI**: same tiles → list → detail structure as the
+  desktop app, same two-click reject, same autosaving notes/practical
+  steps, same "kept is not approval" banner.
+- **Its own journal**, stored at `SPARKY_LOCAL_ROOT` (`/data/smarty` in
+  the Docker image) — edits made from an iPad are real edits, applied
+  directly to this instance's store.
+- **HTTP sync API** (`GET/POST /api/sync/{pull,push}`, bearer-token
+  authenticated via `SMARTY_SYNC_TOKEN`, separate from the browser
+  password) — the exact same union-by-op-id, keep-both-on-conflict merge
+  the T:\\ share sync uses, just reached over HTTPS. The desktop app's new
+  **"Sync to cloud"** button (`smarty/cloud_sync.py`) calls this, so edits
+  flow both ways between the laptop and the hosted copy.
+
+Run it locally:
+
+```powershell
+cd C:\TowerHill\Smarty
+.\.venv\Scripts\Activate.ps1
+$env:SPARKY_LOCAL_ROOT = "C:\TowerHill\Smarty\.devdata\local"
+$env:SMARTY_WEB_PASSWORD = "choose-a-password"
+$env:SMARTY_SYNC_TOKEN = "choose-a-token"
+python -m uvicorn smarty.web.app:app --host 127.0.0.1 --port 8711
+```
+
+To point the desktop app at a deployed instance, set before launching:
+`SPARKY_CLOUD_SYNC_URL=https://<your-render-url>` and
+`SPARKY_CLOUD_SYNC_TOKEN=<same token as SMARTY_SYNC_TOKEN>` (or save them
+into `sparky-paths.json` as `cloud_sync_url`/`cloud_sync_token`).
+
+**Deploying to Render:** `Dockerfile`, `render.yaml`, and
+`requirements-web.txt` (deliberately excludes PySide6 — the web process
+never imports `smarty.ui.main_window`/`app`) are ready at the project
+root. `render.yaml`'s persistent disk needs a paid ("Starter" or above)
+Render plan — Render's free web-service tier has no persistent disk, so
+`/data` would be wiped on every redeploy/restart (the app would just
+re-seed from the bundled catalog and lose any notes/status entered since
+the last deploy). Needed on Render's dashboard once connected to a repo:
+set `SMARTY_WEB_PASSWORD` and `SMARTY_SYNC_TOKEN` as secret env vars
+(`SMARTY_SESSION_SECRET` auto-generates via the blueprint).
+
 ## Imports after the seed
 
 `smarty.importer.apply_import_batch(cache, batch)` accepts a dict with
@@ -247,7 +296,7 @@ cd C:\TowerHill\Smarty
 python -m pytest tests -q
 ```
 
-**Result: 62 passed, 0 failed.** Covers: seed validation (missing fields,
+**Result: 76 passed, 0 failed.** Covers: seed validation (missing fields,
 invented scores rejected), journal conflict reduction (independent fields,
 supersession, divergent-edit conflicts kept until resolved, resolution
 clears them), store read/write round-trips, importer revision rules
@@ -267,7 +316,14 @@ conventional list/detail split — note typed and reloaded in a fresh
 window still has it, reject requires two clicks, the "kept is not
 approval" line is on screen, device-label button starts blank and takes
 a typed label, importing a batch through the UI adds the record and the
-bot filter grows without duplicating on repeated refresh).
+bot filter grows without duplicating on repeated refresh), the web app
+(login gate, tiles/detail/notes/two-click-reject all working the same way
+as desktop, sync API bearer-token auth), and cloud sync integration tests
+that start a **real** `smarty.web.app` instance in a background thread and
+talk to it over **real HTTP** (not mocked): a laptop pushes edits and a
+second laptop pulls and sees them, a wrong token is rejected, and a
+browser-made edit (simulating the iPad) reaches a laptop that syncs
+afterward.
 
 Two real bugs this project caught and fixed, both found by writing
 end-to-end checks rather than only unit tests in isolation:
