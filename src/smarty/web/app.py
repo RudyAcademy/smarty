@@ -5,8 +5,10 @@ smarty.ui -- no PySide6 in this process.
 
 from __future__ import annotations
 
+import json
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -16,8 +18,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.status import HTTP_303_SEE_OTHER
 
+from smarty.importer import record_first_seen_map
 from smarty.models import STATUSES
-from smarty.version import APP_NAME, CATEGORIES_ORDER, STATUS_VIEWS_ORDER
+from smarty.version import APP_NAME, CATEGORIES_ORDER, NEW_IDEA_WINDOW_DAYS, STATUS_VIEWS_ORDER
 from smarty.web.auth import require_login, web_password
 from smarty.web.feedback_api import router as feedback_router
 from smarty.web.ingest_api import router as ingest_router
@@ -74,6 +77,34 @@ def _rows_for_tile(index: int):
     if kind == "category":
         return rows_for_category(catalog, store, key)
     return rows_for_status_view(catalog, store, key)
+
+
+def _is_new(content_id: str, status: str, first_seen_map: dict) -> bool:
+    """NEW badge rule: still unreviewed, and first added within the
+    configured window. Once you act on it (kept/parked/rejected), the
+    status badge already says what happened, so NEW adds no value."""
+    if status != "unreviewed":
+        return False
+    first_seen = first_seen_map.get(content_id)
+    if not first_seen:
+        return False
+    try:
+        seen_at = datetime.fromisoformat(first_seen)
+    except ValueError:
+        return False
+    return datetime.now(timezone.utc) - seen_at <= timedelta(days=NEW_IDEA_WINDOW_DAYS)
+
+
+def _first_seen_map() -> dict:
+    paths = app.state.paths
+    cache_path = paths.local_catalog_dir / "current.json"
+    if not cache_path.exists():
+        return {}
+    try:
+        cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return record_first_seen_map(cache)
 
 
 def _record_view(content_id: str) -> dict | None:
@@ -155,10 +186,12 @@ def index(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    store = app.state.store
+    first_seen = _first_seen_map()
     tiles = []
     for i in range(len(TILES)):
-        tiles.append({"index": i, "label": _tile_label(i), "count": len(_rows_for_tile(i))})
+        rows = _rows_for_tile(i)
+        new_count = sum(1 for r in rows if _is_new(r.content_id, r.status, first_seen))
+        tiles.append({"index": i, "label": _tile_label(i), "count": len(rows), "new_count": new_count})
     return templates.TemplateResponse(request, "index.html", {"logged_in": True, "tiles": tiles})
 
 
@@ -171,6 +204,8 @@ def tile_view(request: Request, tile_index: int, q: str = ""):
     rows = _rows_for_tile(tile_index)
     rows = filter_rows(rows, search=q, store=store)
     rows = sort_rows(rows, newest_first=True)
+    first_seen = _first_seen_map()
+    new_ids = {r.content_id for r in rows if _is_new(r.content_id, r.status, first_seen)}
     return templates.TemplateResponse(
         request,
         "tile.html",
@@ -180,6 +215,7 @@ def tile_view(request: Request, tile_index: int, q: str = ""):
             "tile_label": _tile_label(tile_index),
             "query": q,
             "rows": rows,
+            "new_ids": new_ids,
         },
     )
 
@@ -197,6 +233,7 @@ def record_view(request: Request, content_id: str, from_tile: int = 0, reject_ar
     status_conflict = None
     if us.is_conflicted("status"):
         status_conflict = ", ".join(f"{v} ({dev})" for v, dev, _ in us.conflicts["status"])
+    is_new = _is_new(content_id, us.status, _first_seen_map())
     return templates.TemplateResponse(
         request,
         "record.html",
@@ -210,6 +247,7 @@ def record_view(request: Request, content_id: str, from_tile: int = 0, reject_ar
             "notes": us.notes,
             "practical_steps": us.practical_steps,
             "reject_armed": reject_armed,
+            "is_new": is_new,
         },
     )
 

@@ -8,6 +8,7 @@ from smarty.importer import (
     cache_to_catalog,
     import_file,
     load_cache,
+    record_first_seen_map,
     validate_manifest_filename,
 )
 from smarty.seed import empty_catalog
@@ -198,3 +199,32 @@ def test_import_file_rejects_bad_json(tmp_path):
 
     with pytest.raises(ImportRejected):
         import_file(cache_path, batch_file)
+
+
+def test_new_record_gets_first_seen_at():
+    cache = _cache()
+    apply_import_batch(cache, {"ideas": [_base_idea()], "performance_records": [], "categories": []})
+    seen = record_first_seen_map(cache)
+    assert seen["sparky-idea-gauss"] is not None
+
+
+def test_update_preserves_original_first_seen_at():
+    cache = _cache()
+    apply_import_batch(cache, {"ideas": [_base_idea(rev=1)], "performance_records": [], "categories": []})
+    original_seen = record_first_seen_map(cache)["sparky-idea-gauss"]
+
+    apply_import_batch(
+        cache, {"ideas": [_base_idea(rev=2, summary="revised summary")], "performance_records": [], "categories": []}
+    )
+    updated_seen = record_first_seen_map(cache)["sparky-idea-gauss"]
+    assert updated_seen == original_seen
+
+
+def test_bootstrap_from_seed_sets_first_seen_at(tmp_path):
+    from smarty.seed import build_catalog
+
+    idea = _base_idea()
+    catalog = build_catalog([idea], [], [{"id": "category-2", "label": "Growth and enrolment"}])
+    cache = load_cache(tmp_path / "does-not-exist.json", catalog)
+    seen = record_first_seen_map(cache)
+    assert seen["sparky-idea-gauss"] is not None

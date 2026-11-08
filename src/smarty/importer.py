@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+from smarty.journal import now_iso
 from smarty.models import SeedValidationError
 from smarty.seed import Catalog, build_catalog
 
@@ -63,9 +64,15 @@ def load_cache(cache_path: Path, fallback: Catalog) -> dict:
         except (OSError, json.JSONDecodeError):
             pass
     records = _record_dicts(fallback)
+    bootstrap_time = now_iso()
     return {
         "records": {
-            cid: {"data": d, "content_revision": d.get("content_revision", 1), "alternates": []}
+            cid: {
+                "data": d,
+                "content_revision": d.get("content_revision", 1),
+                "alternates": [],
+                "first_seen_at": bootstrap_time,
+            }
             for cid, d in records.items()
         },
         "categories": [c.__dict__ for c in fallback.categories],
@@ -78,6 +85,13 @@ def save_cache(cache_path: Path, cache: dict) -> None:
     tmp = cache_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(cache_path)
+
+
+def record_first_seen_map(cache: dict) -> dict[str, str | None]:
+    """id -> ISO timestamp of when that id first appeared in the catalog
+    (never updated by a later content revision), or None if unknown (e.g.
+    a cache written before this field existed)."""
+    return {rid: r.get("first_seen_at") for rid, r in cache.get("records", {}).items()}
 
 
 def _ideas_list(batch: dict) -> list:
@@ -178,14 +192,26 @@ def apply_import_batch(cache: dict, batch: dict) -> ImportReport:
         rev = d.get("content_revision", batch_rev)
         existing = records.get(rid)
         if existing is None:
-            records[rid] = {"data": d, "content_revision": rev, "alternates": []}
+            records[rid] = {
+                "data": d,
+                "content_revision": rev,
+                "alternates": [],
+                "first_seen_at": now_iso(),
+            }
             report.added_ids.append(rid)
             continue
 
         existing_rev = existing.get("content_revision", 1)
         if rev > existing_rev:
             if existing["data"] != d:
-                records[rid] = {"data": d, "content_revision": rev, "alternates": existing.get("alternates", [])}
+                records[rid] = {
+                    "data": d,
+                    "content_revision": rev,
+                    "alternates": existing.get("alternates", []),
+                    # first_seen_at is when this id first appeared, not when
+                    # its text last changed -- an update must not reset it.
+                    "first_seen_at": existing.get("first_seen_at"),
+                }
                 report.updated_ids.append(rid)
             else:
                 report.no_op = True

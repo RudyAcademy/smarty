@@ -7,7 +7,13 @@
   </div>
   <ul class="tile-list">
     {% for tile in tiles %}
-      <li><a href="/tile/{{ tile.index }}">{{ tile.label }} <span style="color:#888;font-size:0.85em;">({{ tile.count }})</span></a></li>
+      <li>
+        <a href="/tile/{{ tile.index }}" class="{{ 'has-new' if tile.new_count else '' }}">
+          {{ tile.label }}
+          <span class="dim">({{ tile.count }})</span>
+          {% if tile.new_count %}<span class="new-badge">{{ tile.new_count }} NEW</span>{% endif %}
+        </a>
+      </li>
     {% endfor %}
   </ul>
 {% endblock %}

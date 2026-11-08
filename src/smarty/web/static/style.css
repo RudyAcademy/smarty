@@ -52,6 +52,7 @@ main { padding: 12px 14px 60px; max-width: 720px; margin: 0 auto; }
   display: block;
   background: var(--panel);
   border: 1px solid var(--panel-border);
+  border-left: 4px solid transparent;
   border-radius: 10px;
   padding: 14px 16px;
   text-decoration: none;
@@ -59,6 +60,23 @@ main { padding: 12px 14px 60px; max-width: 720px; margin: 0 auto; }
   font-size: 1.05em;
 }
 .tile-list a:active, .record-list a:active { background: #1c3659; }
+.dim { color: var(--text-dim); font-size: 0.85em; }
+/* Color-coded new/old: a bright left edge marks anything still unreviewed
+   and added within the last NEW_IDEA_WINDOW_DAYS -- fades to the plain
+   look (no edge) once reviewed or once it's just ordinary backlog. */
+.tile-list a.has-new, .record-list a.is-new { border-left-color: #35d07f; }
+.new-badge {
+  display: inline-block;
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #35d07f;
+  color: #06331c;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 .record-list .status-badge {
   float: right;
   font-size: 0.75em;

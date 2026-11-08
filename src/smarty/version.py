@@ -2,6 +2,13 @@ APP_NAME = "Smarty"
 APP_VERSION = "0.1.0"
 CONTENT_VERSION = "2026-11-07.1"
 
+# A record counts as "new" (gets the color-coded NEW badge) while it's
+# still unreviewed and was first added within this many days -- matches
+# roughly two Grok-bot ingest cycles on a twice-weekly schedule, so a
+# fresh idea stays flagged through the next check-in before fading to
+# ordinary backlog.
+NEW_IDEA_WINDOW_DAYS = 7
+
 # Content tiles, keyed by their exact category label text (matches how
 # records reference a category in the real seed: Idea/PerformanceRecord
 # .categories holds label strings, not a slug).

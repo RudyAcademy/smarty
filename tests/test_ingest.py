@@ -165,3 +165,60 @@ def test_ingest_with_distinct_summary_and_advice_shows_both_on_page(client):
     r = client.get("/record/sparky-idea-distinct-content?from_tile=1")
     assert "A genuinely different one-line summary." in r.text
     assert "A much longer, specific bot suggestion with real detail." in r.text
+
+
+def test_freshly_ingested_idea_shows_new_badge(client):
+    client.post("/api/ingest", json={"ideas": [_new_idea()]}, headers=AUTH)
+    _login(client)
+
+    r = client.get("/tile/1")
+    assert 'class="is-new"' in r.text
+    assert "NEW" in r.text
+
+    r = client.get("/record/sparky-idea-grokbot-1?from_tile=1")
+    assert "NEW" in r.text
+
+
+def _link_snippet(html: str, content_id: str) -> str:
+    """The <a ...>...</a> block for one record, so assertions don't
+    accidentally match some *other* record on the same tile page (several
+    real seed ideas are also legitimately "new" in a freshly-bootstrapped
+    test cache, since they're all "first seen" at the same moment)."""
+    start = html.index(f'href="/record/{content_id}?')
+    end = html.index("</a>", start)
+    return html[start:end]
+
+
+def test_reviewing_idea_removes_new_badge(client):
+    client.post("/api/ingest", json={"ideas": [_new_idea()]}, headers=AUTH)
+    _login(client)
+    client.post(
+        "/record/sparky-idea-grokbot-1/status", data={"status": "kept", "from_tile": "1"}
+    )
+
+    r = client.get("/tile/1")
+    snippet = _link_snippet(r.text, "sparky-idea-grokbot-1")
+    assert "is-new" not in snippet
+    assert "status-kept" in snippet  # the status badge still shows, just not NEW
+
+
+def test_old_unreviewed_idea_does_not_show_new_badge(client, tmp_path):
+    client.post("/api/ingest", json={"ideas": [_new_idea()]}, headers=AUTH)
+
+    # Backdate first_seen_at well past the NEW_IDEA_WINDOW_DAYS window,
+    # bypassing the API (there's no legitimate way to fake the clock
+    # through it) to prove old-but-unreviewed ideas don't show NEW.
+    import json as json_mod
+    from datetime import datetime, timedelta, timezone
+
+    cache_path = tmp_path / "local" / "catalog" / "current.json"
+    cache = json_mod.loads(cache_path.read_text(encoding="utf-8"))
+    old_time = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    cache["records"]["sparky-idea-grokbot-1"]["first_seen_at"] = old_time
+    cache_path.write_text(json_mod.dumps(cache), encoding="utf-8")
+
+    _login(client)
+    r = client.get("/tile/1")
+    snippet = _link_snippet(r.text, "sparky-idea-grokbot-1")
+    assert "is-new" not in snippet
+    assert "status-unreviewed" in snippet  # still unreviewed, just not flagged NEW anymore

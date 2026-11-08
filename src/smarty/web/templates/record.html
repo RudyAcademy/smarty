@@ -5,7 +5,7 @@
 {% endblock %}
 {% block content %}
   <div class="card">
-    <h1>{{ record.title }}</h1>
+    <h1>{{ record.title }}{% if is_new %} <span class="new-badge">NEW</span>{% endif %}</h1>
     <div class="meta">
       id: {{ record.id }}<br>
       {% if record.bots %}Bots: {{ record.bots }}<br>{% endif %}
