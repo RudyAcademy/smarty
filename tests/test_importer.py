@@ -3,12 +3,15 @@ import json
 import pytest
 
 from smarty.importer import (
+    AdviceUpdateNotFound,
+    AdviceUpdateStale,
     ImportRejected,
     apply_import_batch,
     cache_to_catalog,
     import_file,
     load_cache,
     record_first_seen_map,
+    update_idea_advice_text,
     validate_manifest_filename,
 )
 from smarty.seed import empty_catalog
@@ -228,3 +231,87 @@ def test_bootstrap_from_seed_sets_first_seen_at(tmp_path):
     cache = load_cache(tmp_path / "does-not-exist.json", catalog)
     seen = record_first_seen_map(cache)
     assert seen["sparky-idea-gauss"] is not None
+
+
+def test_update_idea_advice_text_bumps_revision_and_preserves_other_fields():
+    cache = _cache()
+    apply_import_batch(cache, {"ideas": [_base_idea(rev=1)], "performance_records": [], "categories": []})
+
+    updated = update_idea_advice_text(cache, "sparky-idea-gauss", expected_revision=1, text="Expanded advice.")
+
+    assert updated["content_revision"] == 2
+    assert updated["data"]["implementation_advice"]["text"] == "Expanded advice."
+    # every other field is untouched
+    assert updated["data"]["title"] == "Gauss contest preparation"
+    assert updated["data"]["categories"] == ["Growth and enrolment"]
+    assert updated["data"]["summary"] == "first summary"
+
+
+def test_update_idea_advice_text_rejects_stale_revision():
+    cache = _cache()
+    apply_import_batch(cache, {"ideas": [_base_idea(rev=1)], "performance_records": [], "categories": []})
+
+    with pytest.raises(AdviceUpdateStale) as exc_info:
+        update_idea_advice_text(cache, "sparky-idea-gauss", expected_revision=99, text="x")
+    assert exc_info.value.current_revision == 1
+    # nothing changed
+    assert cache["records"]["sparky-idea-gauss"]["content_revision"] == 1
+
+
+def test_update_idea_advice_text_rejects_unknown_id():
+    cache = _cache()
+    with pytest.raises(AdviceUpdateNotFound):
+        update_idea_advice_text(cache, "does-not-exist", expected_revision=1, text="x")
+
+
+def test_update_idea_advice_text_rejects_performance_record_id():
+    cache = _cache()
+    perf = {
+        "id": "sparky-performance-x",
+        "kind": "performance",
+        "bot": "Professor",
+        "summary": "s",
+        "caveats": [],
+        "verification_status": "relayed_unverified",
+    }
+    apply_import_batch(cache, {"ideas": [], "performance_records": [perf], "categories": []})
+    with pytest.raises(AdviceUpdateNotFound):
+        update_idea_advice_text(cache, "sparky-performance-x", expected_revision=0, text="x")
+
+
+def test_update_idea_advice_text_retry_with_same_expected_revision_is_safely_rejected():
+    """Simulates a client that timed out and resends the identical request:
+    the first call succeeds and bumps the revision, so a second call with
+    the SAME expected_revision must fail loudly (stale) rather than
+    silently double-applying -- the safe-retry contract documented in the
+    schema."""
+    cache = _cache()
+    apply_import_batch(cache, {"ideas": [_base_idea(rev=1)], "performance_records": [], "categories": []})
+
+    first = update_idea_advice_text(cache, "sparky-idea-gauss", expected_revision=1, text="First attempt.")
+    assert first["content_revision"] == 2
+
+    with pytest.raises(AdviceUpdateStale) as exc_info:
+        update_idea_advice_text(cache, "sparky-idea-gauss", expected_revision=1, text="First attempt.")
+    assert exc_info.value.current_revision == 2
+    # the first attempt's write is the one that stuck
+    assert cache["records"]["sparky-idea-gauss"]["data"]["implementation_advice"]["text"] == "First attempt."
+
+
+def test_update_idea_advice_text_never_touches_cache_categories_or_other_records():
+    cache = _cache()
+    apply_import_batch(
+        cache,
+        {
+            "ideas": [_base_idea(rev=1), {**_base_idea(rev=1), "id": "sparky-idea-other", "title": "Other idea"}],
+            "performance_records": [],
+            "categories": [],
+        },
+    )
+    categories_before = list(cache["categories"])
+    other_before = dict(cache["records"]["sparky-idea-other"])
+
+    update_idea_advice_text(cache, "sparky-idea-gauss", expected_revision=1, text="Expanded advice.")
+
+    assert cache["categories"] == categories_before
+    assert cache["records"]["sparky-idea-other"] == other_before

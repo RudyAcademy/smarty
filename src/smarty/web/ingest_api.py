@@ -15,11 +15,20 @@ views are fixed, so any "categories" the submitter sends is ignored.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from smarty.importer import ImportRejected, apply_import_batch, cache_to_catalog, save_cache
+from smarty.importer import (
+    AdviceUpdateNotFound,
+    AdviceUpdateStale,
+    ImportRejected,
+    apply_import_batch,
+    cache_to_catalog,
+    save_cache,
+    update_idea_advice_text,
+)
 from smarty.version import CATEGORIES_ORDER
 from smarty.web.auth import check_ingest_token
 
@@ -34,6 +43,12 @@ class IngestBody(BaseModel):
     batch_id: str | None = None
     content_revision: int | None = None
     prepared_on: str | None = None
+
+
+class AdviceUpdateBody(BaseModel):
+    id: str
+    expected_revision: int
+    text: str
 
 
 def _require_token(request: Request) -> None:
@@ -104,10 +119,71 @@ def schema(request: Request):
             "implementation_advice.text is the main thing a reader sees: make it longer and specific "
             "(what, for whom, how, any concrete number/tool/timing you actually have) rather than one "
             "short sentence -- but still never invent a specific you don't have.",
-            "To enrich an idea already in the catalog, resubmit the same id with a higher "
-            "content_revision -- it updates the editorial fields in place and never touches notes or "
-            "status (see guarantees above).",
+            "To enrich many existing ideas' advice text at once without risking any other field "
+            "(title, categories, summary, sources, cautions...), use the advice_update_channel below "
+            "instead of resubmitting whole ideas through POST /api/ingest -- it's the narrower, "
+            "purpose-built tool for exactly that.",
         ],
+        "advice_update_channel": {
+            "purpose": "Update ONLY implementation_advice.text on an existing idea -- e.g. replacing a "
+            "one-liner with Leo's expanded, more specific version -- without touching title, "
+            "categories, summary, sources, cautions, originating_bots, received_date, or anything else "
+            "about the idea, and without ever touching notes, status, or practical_steps (those live "
+            "in a separate journal this channel never writes to, exactly like POST /api/ingest).",
+            "read_endpoint": "GET /api/ingest/revisions",
+            "read_auth": "Authorization: Bearer <same SMARTY_INGEST_TOKEN>",
+            "read_purpose": "Current content_revision per record, nothing else: id, kind, title, "
+            "content_revision. Keep review annotations out of this read -- status/notes/"
+            "practical_steps are never included here; that's what GET /api/feedback is for. Call "
+            "this first to get the expected_revision to send with each advice update.",
+            "read_response_shape": {
+                "records": [{"id": "...", "kind": "idea | performance", "title": "...", "content_revision": 1}]
+            },
+            "write_endpoint": "POST /api/ingest/advice",
+            "write_auth": "Authorization: Bearer <same SMARTY_INGEST_TOKEN>",
+            "write_body": {
+                "id": "sparky-idea-<slug> -- must already exist and be an idea, not a performance record",
+                "expected_revision": "the content_revision you just read via GET /api/ingest/revisions "
+                "for this id -- this is a compare-and-swap, not a blind overwrite",
+                "text": "the new implementation_advice.text, longer and specific",
+            },
+            "write_response_shape": {
+                "id": "...",
+                "content_revision": "the new revision (expected_revision + 1) -- verify this is what "
+                "you expected before moving to the next idea",
+                "implementation_advice": {
+                    "kind": "bot_suggested_not_original_source_evidence",
+                    "text": "exactly what was saved -- compare against what you sent to confirm it "
+                    "landed correctly",
+                },
+            },
+            "errors": {
+                "401": "missing or invalid token",
+                "404": "unknown id, or id belongs to a performance record (no implementation_advice "
+                "field exists to edit)",
+                "409": "expected_revision does not match the current content_revision -- something "
+                "already changed it (another update, or your own earlier attempt). Re-read via GET "
+                "/api/ingest/revisions before retrying; do not just resend the same request.",
+                "422": "text missing or blank",
+            },
+            "retry_after_timeout": "If a request times out or the connection drops before you see a "
+            "response, do not blindly resend. Call GET /api/ingest/revisions for that id first. If "
+            "content_revision is still the value you started from, the write never landed -- resending "
+            "the identical request is safe. If it already advanced to expected_revision + 1 and "
+            "implementation_advice.text already matches what you sent, your update landed the first "
+            "time -- nothing more to do. A 409 on a retry means exactly that: already applied, not a "
+            "failure to react to.",
+            "guarantees": [
+                "Touches only implementation_advice.text. Every other field on the idea is "
+                "byte-for-byte unchanged.",
+                "Never touches notes, status, or practical_steps.",
+                "Never reseeds or resets the catalog -- only edits the already-persisted cache in "
+                "place, the same store every other read/write in this app uses.",
+                "content_revision only ever moves forward by exactly 1 per successful call; a stale "
+                "expected_revision is always rejected (409), never silently applied out of order, so "
+                "two concurrent updates to the same id can't clobber each other unnoticed.",
+            ],
+        },
         "reverse_channel": {
             "endpoint": "GET /api/feedback",
             "auth": "Authorization: Bearer <same SMARTY_INGEST_TOKEN> (shared with /api/ingest; "
@@ -194,4 +270,73 @@ def ingest(request: Request, body: IngestBody):
         "skipped_stale": report.skipped_stale_ids,
         "kept_alternate": report.kept_alternate_ids,
         "no_op": report.no_op,
+    }
+
+
+def _load_cache_or_404(request: Request, content_id: str) -> tuple[dict, Path]:
+    paths = request.app.state.paths
+    cache_path = paths.local_catalog_dir / "current.json"
+    if not cache_path.exists():
+        raise HTTPException(status_code=404, detail=f"no idea with id {content_id!r}")
+    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    return cache, cache_path
+
+
+@router.get("/revisions")
+def revisions(request: Request):
+    """Editorial-only read: id, kind, title, content_revision per record --
+    deliberately never status/notes/practical_steps (that's GET
+    /api/feedback's job; see 'Keep review annotations out of these
+    editorial reads' in the schema's advice_update_channel doc). Reading
+    the current revision here before calling POST /api/ingest/advice is
+    how a submitter picks the correct expected_revision for the
+    compare-and-swap."""
+    _require_token(request)
+    store = request.app.state.store
+    out = []
+    for idea in store.catalog.ideas:
+        out.append(
+            {"id": idea.id, "kind": "idea", "title": idea.title, "content_revision": idea.content_revision}
+        )
+    for rec in store.catalog.performance_records:
+        out.append(
+            {
+                "id": rec.id,
+                "kind": "performance",
+                "title": rec.title or rec.bot,
+                "content_revision": rec.content_revision,
+            }
+        )
+    return {"records": out}
+
+
+@router.post("/advice")
+def update_advice(request: Request, body: AdviceUpdateBody):
+    """Patch ONLY implementation_advice.text for one idea. A
+    compare-and-swap on content_revision: reject (409) if expected_revision
+    doesn't match current, reject (404) if the id doesn't exist or isn't an
+    idea. Never reseeds/resets the catalog -- only edits the already-loaded
+    cache. See GET /api/ingest/schema's advice_update_channel for the full
+    contract, including safe-retry-after-timeout guidance."""
+    _require_token(request)
+    if not body.text or not body.text.strip():
+        raise HTTPException(status_code=422, detail="text must not be empty")
+
+    cache, cache_path = _load_cache_or_404(request, body.id)
+
+    try:
+        updated = update_idea_advice_text(cache, body.id, body.expected_revision, body.text)
+    except AdviceUpdateNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AdviceUpdateStale as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    save_cache(cache_path, cache)
+    catalog = cache_to_catalog(cache)
+    request.app.state.store.catalog = catalog
+
+    return {
+        "id": body.id,
+        "content_revision": updated["content_revision"],
+        "implementation_advice": updated["data"]["implementation_advice"],
     }

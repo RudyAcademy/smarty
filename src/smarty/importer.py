@@ -33,6 +33,19 @@ class ImportRejected(ValueError):
     """Raised when an entire batch must be rejected (never partially applied)."""
 
 
+class AdviceUpdateNotFound(ValueError):
+    """Raised when the id doesn't exist, or exists but isn't an idea."""
+
+
+class AdviceUpdateStale(ValueError):
+    """Raised when expected_revision doesn't match the record's current
+    content_revision -- a compare-and-swap rejection, not a crash."""
+
+    def __init__(self, current_revision: int):
+        self.current_revision = current_revision
+        super().__init__(f"stale expected_revision; current content_revision is {current_revision}")
+
+
 @dataclass
 class ImportReport:
     updated_ids: list[str] = field(default_factory=list)
@@ -85,6 +98,50 @@ def save_cache(cache_path: Path, cache: dict) -> None:
     tmp = cache_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(cache_path)
+
+
+def update_idea_advice_text(cache: dict, content_id: str, expected_revision: int, text: str) -> dict:
+    """Patch ONLY implementation_advice.text for one idea, in place in the
+    cache dict, bumping content_revision by exactly 1. Every other field on
+    the idea (title, categories, summary, sources, cautions,
+    originating_bots, received_date, ...) is preserved byte-for-byte.
+
+    This is a compare-and-swap, not a blind overwrite: expected_revision
+    must match the record's current content_revision exactly, or
+    AdviceUpdateStale is raised (carrying the real current revision) and
+    nothing is changed. That's also what makes a retry after a timeout
+    safe: if the first attempt actually landed, content_revision already
+    moved forward, so an identical retry with the same expected_revision
+    fails loudly (stale) instead of silently double-applying.
+
+    Never touches the journal (notes/status/practical_steps) and never
+    reseeds/resets the catalog -- this only edits the already-loaded cache
+    dict; callers are responsible for save_cache + rebuilding the catalog,
+    exactly like apply_import_batch's callers.
+    """
+    records = cache.get("records", {})
+    existing = records.get(content_id)
+    if existing is None or existing.get("data", {}).get("kind") != "idea":
+        raise AdviceUpdateNotFound(f"no idea with id {content_id!r}")
+
+    current_revision = existing.get("content_revision", 1)
+    if expected_revision != current_revision:
+        raise AdviceUpdateStale(current_revision)
+
+    new_revision = current_revision + 1
+    new_data = dict(existing["data"])
+    advice = dict(new_data.get("implementation_advice") or {})
+    advice["text"] = text
+    new_data["implementation_advice"] = advice
+    new_data["content_revision"] = new_revision  # keep the embedded copy in sync with the envelope
+
+    records[content_id] = {
+        "data": new_data,
+        "content_revision": new_revision,
+        "alternates": existing.get("alternates", []),
+        "first_seen_at": existing.get("first_seen_at"),
+    }
+    return records[content_id]
 
 
 def record_first_seen_map(cache: dict) -> dict[str, str | None]:

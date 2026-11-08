@@ -253,9 +253,37 @@ automated submitter to make `summary` and `implementation_advice.text`
 actually different, and to make the advice longer and specific rather than
 a one-liner — Smarty can't invent that richness itself without breaking
 the no-fabrication rule that governs this whole app, so it can only ask.
-To enrich an idea already in the catalog, resubmit the same `id` at a
-higher `content_revision`; that updates the editorial fields in place and
-never touches notes or status.
+To enrich an idea already in the catalog, use the advice-update channel
+below rather than resubmitting the whole idea — it's the narrower,
+purpose-built tool for exactly that.
+
+**Advice-only update channel — `GET /api/ingest/revisions` + `POST
+/api/ingest/advice`:** built for Leo's expanded-advice pass over the
+original 59 ideas. `GET /api/ingest/revisions` returns `id`, `kind`,
+`title`, `content_revision` for every record — deliberately **no**
+status/notes/practical_steps (that's `/api/feedback`'s job; keeping
+editorial reads and review reads separate was explicit in the request).
+`POST /api/ingest/advice` then patches **only**
+`implementation_advice.text` for one idea, as a compare-and-swap keyed on
+`expected_revision` (the value just read): a mismatch is rejected with
+409, an unknown id or a performance-record id (no advice field to edit)
+with 404, blank text with 422. Every other field — title, categories,
+summary, sources, cautions, originating_bots, received_date — is
+preserved byte-for-byte, and notes/status/practical_steps are untouched
+exactly like `/api/ingest` (separate journal, never written here). The
+response echoes back the saved `implementation_advice` and the new
+`content_revision` so Leo can verify each write without a second read.
+**Safe retry after a timeout:** never blindly resend — re-read via `GET
+/api/ingest/revisions` first; if the revision already advanced with your
+text already saved, you're done (a 409 on retry means exactly that, not a
+failure). None of this reseeds or resets the catalog; it only edits the
+already-persisted cache in place, the same store every other read/write
+in this app uses. Full contract documented under `advice_update_channel`
+in `GET /api/ingest/schema`. Covered by 15 tests across
+`tests/test_importer.py` (compare-and-swap semantics, stale/unknown
+rejection, other-fields/other-records untouched) and `tests/test_ingest.py`
+(the full HTTP flow against the real bundled seed, including a literal
+read → patch → identical-retry-rejected scenario).
 
 **Reverse channel — `GET /api/feedback`:** lets Grok-bot read back what
 Rudy decided: status (kept/parked/rejected/unreviewed) and notes per idea,
@@ -375,7 +403,7 @@ cd C:\TowerHill\Smarty
 python -m pytest tests -q
 ```
 
-**Result: 106 passed, 0 failed.** Covers: seed validation (missing fields,
+**Result: 122 passed, 0 failed.** Covers: seed validation (missing fields,
 invented scores rejected), journal conflict reduction (independent fields,
 supersession, divergent-edit conflicts kept until resolved, resolution
 clears them), store read/write round-trips, importer revision rules

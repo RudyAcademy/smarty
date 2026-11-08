@@ -222,3 +222,131 @@ def test_old_unreviewed_idea_does_not_show_new_badge(client, tmp_path):
     snippet = _link_snippet(r.text, "sparky-idea-grokbot-1")
     assert "is-new" not in snippet
     assert "status-unreviewed" in snippet  # still unreviewed, just not flagged NEW anymore
+
+
+def test_revisions_endpoint_requires_token(client):
+    assert client.get("/api/ingest/revisions").status_code == 401
+
+
+def test_revisions_endpoint_lists_content_revision_without_review_annotations(client):
+    r = client.get("/api/ingest/revisions", headers=AUTH)
+    assert r.status_code == 200
+    records = r.json()["records"]
+    gauss = next(x for x in records if x["id"] == "sparky-idea-gauss")
+    assert gauss["content_revision"] == 1
+    assert gauss["kind"] == "idea"
+    assert "status" not in gauss
+    assert "notes" not in gauss
+    assert "practical_steps" not in gauss
+
+
+def test_advice_update_requires_token(client):
+    r = client.post("/api/ingest/advice", json={"id": "sparky-idea-gauss", "expected_revision": 1, "text": "x"})
+    assert r.status_code == 401
+
+
+def test_advice_update_succeeds_and_returns_saved_text_and_new_revision(client):
+    r = client.post(
+        "/api/ingest/advice",
+        json={"id": "sparky-idea-gauss", "expected_revision": 1, "text": "Expanded advice from Leo."},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["id"] == "sparky-idea-gauss"
+    assert body["content_revision"] == 2
+    assert body["implementation_advice"]["text"] == "Expanded advice from Leo."
+
+    _login(client)
+    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    assert "Expanded advice from Leo." in r.text
+    assert "Gauss contest preparation" in r.text  # title untouched
+
+
+def test_advice_update_rejects_stale_revision(client):
+    r = client.post(
+        "/api/ingest/advice",
+        json={"id": "sparky-idea-gauss", "expected_revision": 99, "text": "x"},
+        headers=AUTH,
+    )
+    assert r.status_code == 409
+
+
+def test_advice_update_rejects_unknown_id(client):
+    r = client.post(
+        "/api/ingest/advice",
+        json={"id": "does-not-exist", "expected_revision": 1, "text": "x"},
+        headers=AUTH,
+    )
+    assert r.status_code == 404
+
+
+def test_advice_update_rejects_blank_text(client):
+    r = client.post(
+        "/api/ingest/advice",
+        json={"id": "sparky-idea-gauss", "expected_revision": 1, "text": "   "},
+        headers=AUTH,
+    )
+    assert r.status_code == 422
+
+
+def test_advice_update_preserves_notes_status_and_other_fields(client):
+    _login(client)
+    client.post("/record/sparky-idea-gauss/status", data={"status": "kept", "from_tile": "1"})
+    client.post(
+        "/record/sparky-idea-gauss/notes", data={"notes": "Worth it for Grade 6.", "from_tile": "1"}
+    )
+
+    r = client.post(
+        "/api/ingest/advice",
+        json={"id": "sparky-idea-gauss", "expected_revision": 1, "text": "Expanded advice from Leo."},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+
+    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    assert "Worth it for Grade 6." in r.text  # notes survived
+    assert "kept" in r.text.lower()  # status survived
+    assert "cemc.uwaterloo.ca" in r.text  # original source URL untouched
+
+
+def test_advice_update_does_not_reseed_catalog(client):
+    """A side effect that would indicate a reseed: the catalog size
+    changing or an unrelated record's content changing."""
+    before = client.get("/api/feedback?include_all=true", headers=AUTH).json()["records"]
+
+    client.post(
+        "/api/ingest/advice",
+        json={"id": "sparky-idea-gauss", "expected_revision": 1, "text": "Expanded advice from Leo."},
+        headers=AUTH,
+    )
+
+    after = client.get("/api/feedback?include_all=true", headers=AUTH).json()["records"]
+    assert len(before) == len(after) == 69
+
+
+def test_retry_after_timeout_scenario_second_identical_call_is_safely_rejected(client):
+    """Full documented retry story: call once (succeeds), simulate a
+    client that didn't see the response and resends the identical
+    request -- the retry must fail with 409, not double-apply or error
+    in a way that looks like data loss."""
+    first = client.post(
+        "/api/ingest/advice",
+        json={"id": "sparky-idea-gauss", "expected_revision": 1, "text": "Expanded advice from Leo."},
+        headers=AUTH,
+    )
+    assert first.status_code == 200
+    assert first.json()["content_revision"] == 2
+
+    retry = client.post(
+        "/api/ingest/advice",
+        json={"id": "sparky-idea-gauss", "expected_revision": 1, "text": "Expanded advice from Leo."},
+        headers=AUTH,
+    )
+    assert retry.status_code == 409
+
+    # Leo's documented recovery: re-read current revision, see it already
+    # advanced with the intended text already saved -- nothing more to do.
+    current = client.get("/api/ingest/revisions", headers=AUTH).json()["records"]
+    gauss = next(x for x in current if x["id"] == "sparky-idea-gauss")
+    assert gauss["content_revision"] == 2
