@@ -8,8 +8,9 @@
 </head>
 <body>
   <header>
-    <a href="/">Smarty</a>
-    {% if logged_in %}<a class="logout" href="/logout">Log out</a>{% endif %}
+    <a href="/" class="brand">Smarty</a>
+    <div class="header-center">{% block header_center %}{% endblock %}</div>
+    {% if logged_in %}<a class="logout" href="/logout">Log out</a>{% else %}<span></span>{% endif %}
   </header>
   <main>
     {% block content %}{% endblock %}

@@ -64,6 +64,38 @@ def test_record_detail_shows_summary(client):
     assert "Gauss contest preparation" in r.text
 
 
+def test_record_detail_back_to_list_is_in_header_center(client):
+    _login(client)
+    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    header, _, rest = r.text.partition("</header>")
+    assert "Back to list" in header
+    assert "Back to list" not in rest.split("<main>", 1)[0]  # not duplicated outside header
+
+
+def test_record_detail_has_no_cautions_blurb(client):
+    _login(client)
+    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    assert "Proposal only" not in r.text
+    assert "class=\"cautions\"" not in r.text or "Status conflict" in r.text
+
+
+def test_record_detail_source_link_is_clickable_new_tab(client):
+    _login(client)
+    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    assert 'target="_blank"' in r.text
+    assert "https://cemc.uwaterloo.ca/contests/gauss" in r.text
+    assert '<a href="https://cemc.uwaterloo.ca/contests/gauss"' in r.text
+
+
+def test_record_detail_has_single_notes_box_with_send_to_grokbot_button(client):
+    _login(client)
+    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    assert r.text.count("<textarea") == 1
+    assert "Save your notes and Send to Grok-bot" in r.text
+    assert "Practical steps" not in r.text
+    assert "/steps" not in r.text
+
+
 def test_notes_save_and_persist(client):
     _login(client)
     r = client.post(

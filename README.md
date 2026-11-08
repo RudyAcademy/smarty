@@ -335,7 +335,7 @@ cd C:\TowerHill\Smarty
 python -m pytest tests -q
 ```
 
-**Result: 94 passed, 0 failed.** Covers: seed validation (missing fields,
+**Result: 98 passed, 0 failed.** Covers: seed validation (missing fields,
 invented scores rejected), journal conflict reduction (independent fields,
 supersession, divergent-edit conflicts kept until resolved, resolution
 clears them), store read/write round-trips, importer revision rules
