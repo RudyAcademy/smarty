@@ -242,6 +242,21 @@ that id — the catalog cache and the journal are separate stores, so this
 is a structural guarantee, not something the endpoint has to special-case
 (covered by `tests/test_ingest.py::test_ingest_preserves_existing_notes_and_status_on_resubmission`).
 
+**Content richness:** the real seed data has `summary` literally equal to
+`"{title}: {advice text}"` for all 59 original ideas (checked against the
+raw source file, not assumed) — the record page used to show the title,
+then that same sentence, then the advice text a second time. The page now
+detects that exact redundancy and shows the advice once; if a future
+submission's `summary` genuinely differs from its `implementation_advice`,
+both show. `GET /api/ingest/schema`'s `content_guidance` section tells an
+automated submitter to make `summary` and `implementation_advice.text`
+actually different, and to make the advice longer and specific rather than
+a one-liner — Smarty can't invent that richness itself without breaking
+the no-fabrication rule that governs this whole app, so it can only ask.
+To enrich an idea already in the catalog, resubmit the same `id` at a
+higher `content_revision`; that updates the editorial fields in place and
+never touches notes or status.
+
 **Reverse channel — `GET /api/feedback`:** lets Grok-bot read back what
 Rudy decided: status (kept/parked/rejected/unreviewed) and notes per idea,
 read-only, reduced the same way the UI shows it (never a raw op log).
@@ -335,7 +350,7 @@ cd C:\TowerHill\Smarty
 python -m pytest tests -q
 ```
 
-**Result: 98 passed, 0 failed.** Covers: seed validation (missing fields,
+**Result: 100 passed, 0 failed.** Covers: seed validation (missing fields,
 invented scores rejected), journal conflict reduction (independent fields,
 supersession, divergent-edit conflicts kept until resolved, resolution
 clears them), store read/write round-trips, importer revision rules

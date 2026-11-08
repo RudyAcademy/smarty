@@ -58,10 +58,14 @@ def schema(request: Request):
                     "id": "sparky-idea-<slug>",
                     "title": "Short title",
                     "categories": ["<one or more of valid_categories, exact text>"],
-                    "summary": "One or two sentences.",
+                    "summary": "One short sentence distinct from implementation_advice.text -- "
+                    "do not just repeat '<title>: <advice>'.",
                     "implementation_advice": {
                         "kind": "bot_suggested_not_original_source_evidence",
-                        "text": "Practical suggestion text.",
+                        "text": "Longer and specific: what exactly to do, for whom, roughly how, and "
+                        "any concrete detail you actually have (numbers, timing, a named tool or "
+                        "format) -- several sentences, not a one-liner. Still never invent a detail "
+                        "you don't have.",
                     },
                     "originating_bots": ["Grok-bot"],
                     "received_date": {
@@ -92,6 +96,17 @@ def schema(request: Request):
             "nothing at all -- never partially applied.",
             "Never touches existing notes or kept/parked/rejected status on any id, including one you "
             "resubmit -- those live in a separate journal this endpoint never writes to.",
+        ],
+        "content_guidance": [
+            "summary and implementation_advice.text are shown separately on the page -- make them say "
+            "different things. A summary that's just '<title>: <advice text>' is detected and the "
+            "duplicate line is hidden, but a real distinct summary is better.",
+            "implementation_advice.text is the main thing a reader sees: make it longer and specific "
+            "(what, for whom, how, any concrete number/tool/timing you actually have) rather than one "
+            "short sentence -- but still never invent a specific you don't have.",
+            "To enrich an idea already in the catalog, resubmit the same id with a higher "
+            "content_revision -- it updates the editorial fields in place and never touches notes or "
+            "status (see guarantees above).",
         ],
         "reverse_channel": {
             "endpoint": "GET /api/feedback",

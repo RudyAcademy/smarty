@@ -87,6 +87,17 @@ def test_record_detail_source_link_is_clickable_new_tab(client):
     assert '<a href="https://cemc.uwaterloo.ca/contests/gauss"' in r.text
 
 
+def test_record_detail_collapses_redundant_summary_and_advice(client):
+    # The real seed data has summary == "{title}: {advice}" for every idea
+    # (verified against the raw source file, not assumed) -- the page must
+    # not show the title and the advice text twice because of it.
+    _login(client)
+    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    advice_text = "Explore an enrichment group; check registration eligibility before promising a contest sitting."
+    assert r.text.count(advice_text) == 1
+    assert r.text.count("Gauss contest preparation:") == 0  # the redundant "title: advice" sentence
+
+
 def test_record_detail_has_single_notes_box_with_send_to_grokbot_button(client):
     _login(client)
     r = client.get("/record/sparky-idea-gauss?from_tile=1")

@@ -13,9 +13,13 @@
       (discovery time not recorded)<br>
       {% if record.verification_status %}Verification status: {{ record.verification_status }}<br>{% endif %}
     </div>
-    <p>{{ record.summary }}</p>
-    {% if record.advice_text %}
+    {% if record.summary_is_redundant %}
       <p><b>Bot suggestion (not source evidence):</b> {{ record.advice_text }}</p>
+    {% else %}
+      <p>{{ record.summary }}</p>
+      {% if record.advice_text %}
+        <p><b>Bot suggestion (not source evidence):</b> {{ record.advice_text }}</p>
+      {% endif %}
     {% endif %}
     {% if record.kind == "idea" %}
       {% if record.sources %}

@@ -153,3 +153,15 @@ def test_ingest_cannot_introduce_new_category(client):
     _login(client)
     r = client.get("/")
     assert "Sneaky new tile" not in r.text
+
+
+def test_ingest_with_distinct_summary_and_advice_shows_both_on_page(client):
+    idea = _new_idea(id="sparky-idea-distinct-content")
+    idea["summary"] = "A genuinely different one-line summary."
+    idea["implementation_advice"]["text"] = "A much longer, specific bot suggestion with real detail."
+    client.post("/api/ingest", json={"ideas": [idea]}, headers=AUTH)
+
+    _login(client)
+    r = client.get("/record/sparky-idea-distinct-content?from_tile=1")
+    assert "A genuinely different one-line summary." in r.text
+    assert "A much longer, specific bot suggestion with real detail." in r.text

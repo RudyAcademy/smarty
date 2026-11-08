@@ -80,6 +80,13 @@ def _record_view(content_id: str) -> dict | None:
     store = app.state.store
     for idea in store.catalog.ideas:
         if idea.id == content_id:
+            advice_text = idea.implementation_advice.get("text")
+            # The real seed data has summary == "{title}: {advice}" for every
+            # idea, so showing both the summary paragraph and a separate
+            # "bot suggestion" box repeats the same sentence (and the title)
+            # twice. Once Grok-bot starts submitting a summary genuinely
+            # distinct from the advice, this stops matching and both show.
+            summary_is_redundant = idea.summary == f"{idea.title}: {advice_text}"
             return {
                 "kind": "idea",
                 "id": idea.id,
@@ -88,7 +95,8 @@ def _record_view(content_id: str) -> dict | None:
                 "period_start": idea.received_period.start,
                 "period_end": idea.received_period.end,
                 "summary": idea.summary,
-                "advice_text": idea.implementation_advice.get("text"),
+                "advice_text": advice_text,
+                "summary_is_redundant": summary_is_redundant,
                 "sources": [s.get("url", "") for s in idea.sources],
                 "missing_source_note": idea.missing_source_note,
                 "cautions": list(idea.cautions),
@@ -106,6 +114,7 @@ def _record_view(content_id: str) -> dict | None:
                 "period_end": rec.received_period.end,
                 "summary": rec.summary,
                 "advice_text": None,
+                "summary_is_redundant": False,
                 "sources": [],
                 "missing_source_note": None,
                 "cautions": [],
