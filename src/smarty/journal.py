@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-FIELDS = ("status", "notes", "practical_steps")
+FIELDS = ("status", "notes", "practical_steps", "transferred_at")
 
 
 @dataclass(frozen=True)

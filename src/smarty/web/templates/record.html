@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ record.title }} - Smarty{% endblock %}
 {% block header_center %}
-  <a href="/tile/{{ from_tile }}" class="btn">&larr; Back to list</a>
+  <a href="{{ back_url }}" class="btn">&larr; Back to list</a>
 {% endblock %}
 {% block content %}
+  {% if saved %}
+    <div class="banner">Your note addition was saved in the notes section and added to the transfer buffer.</div>
+  {% endif %}
+  {% if error %}
+    <div class="banner error">{{ error }}</div>
+  {% endif %}
   <div class="card">
     <h1>{{ record.title }}{% if is_new %} <span class="new-badge">NEW</span>{% endif %}</h1>
     <div class="meta">
@@ -12,6 +18,7 @@
       Received period: {{ record.period_start or "?" }} to {{ record.period_end or "?" }}
       (discovery time not recorded)<br>
       {% if record.verification_status %}Verification status: {{ record.verification_status }}<br>{% endif %}
+      {% if transferred_at %}Sent to Grok-bot: {{ transferred_at }}<br>{% endif %}
     </div>
     {% if record.summary_is_redundant %}
       <p><b>Bot suggestion (not source evidence):</b> {{ record.advice_text }}</p>
@@ -39,29 +46,63 @@
   </div>
 
   <div class="card">
-    <div class="status-row">
-      {% for s in statuses %}
-        <form class="inline" method="post" action="/record/{{ record.id }}/status">
-          <input type="hidden" name="from_tile" value="{{ from_tile }}">
-          <input type="hidden" name="status" value="{{ s }}">
-          {% if s == "rejected" and reject_armed %}
-            <input type="hidden" name="confirm" value="1">
-            <button type="submit" class="danger-armed">Confirm reject?</button>
-          {% else %}
-            <button type="submit" class="{{ 'active' if s == current_status else '' }}">{{ s }}</button>
-          {% endif %}
-        </form>
-      {% endfor %}
-    </div>
-    {% if status_conflict %}
-      <p class="cautions">Status conflict, not resolved: {{ status_conflict }}</p>
-    {% endif %}
-
-    <form method="post" action="/record/{{ record.id }}/notes">
+    <form method="post" action="/record/{{ record.id }}/save" id="save-form">
       <input type="hidden" name="from_tile" value="{{ from_tile }}">
+      <input type="hidden" name="status" id="status-input" value="{{ current_status }}">
+
+      <div class="status-row" id="status-row">
+        {% for s in statuses %}
+          <button type="button" class="status-choice {{ 'active' if s == current_status else '' }}" data-status="{{ s }}">{{ s }}</button>
+        {% endfor %}
+      </div>
+      {% if status_conflict %}
+        <p class="cautions">Status conflict, not resolved: {{ status_conflict }}</p>
+      {% endif %}
+
       <label>Rudy's notes:</label>
-      <textarea name="notes">{{ notes }}</textarea>
-      <button type="submit" class="active">Save your notes and Send to Grok-bot</button>
+      <textarea name="notes" id="notes-input">{{ notes }}</textarea>
+      <button type="submit" id="save-button" class="active">Save your notes and Send to Grok-bot</button>
     </form>
   </div>
+
+  <script>
+  (function () {
+    var statusInput = document.getElementById('status-input');
+    var notesInput = document.getElementById('notes-input');
+    var buttons = document.querySelectorAll('.status-choice');
+    var saveButton = document.getElementById('save-button');
+    var saveForm = document.getElementById('save-form');
+    var originalLabel = saveButton.textContent;
+    var armedReject = false;
+
+    function resetArm() {
+      armedReject = false;
+      saveButton.textContent = originalLabel;
+      saveButton.classList.remove('danger-armed');
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        statusInput.value = btn.getAttribute('data-status');
+        resetArm();
+      });
+    });
+
+    saveForm.addEventListener('submit', function (e) {
+      if (notesInput.value.trim() && statusInput.value === 'unreviewed') {
+        e.preventDefault();
+        alert('Please choose kept, parked, or rejected before saving a note.');
+        return;
+      }
+      if (statusInput.value === 'rejected' && !armedReject) {
+        e.preventDefault();
+        armedReject = true;
+        saveButton.textContent = 'Confirm reject and save?';
+        saveButton.classList.add('danger-armed');
+      }
+    });
+  })();
+  </script>
 {% endblock %}

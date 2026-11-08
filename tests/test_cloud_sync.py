@@ -88,14 +88,15 @@ def test_push_then_pull_round_trip_over_real_http(tmp_path, live_cloud_server):
 
     result = sync_with_cloud(laptop_store, laptop_paths, timeout=5)
     assert result.outcome == "ok"
-    assert result.pushed == 2
+    # status + transferred_at (cleared, since "kept" re-enters the buffer) + notes
+    assert result.pushed == 3
 
     # A second laptop pulls and should see the first laptop's edits.
     laptop2_paths = _laptop_paths(tmp_path, "laptop2", url, token)
     laptop2_store = Store(laptop2_paths, empty_catalog())
     result2 = sync_with_cloud(laptop2_store, laptop2_paths, timeout=5)
     assert result2.outcome == "ok"
-    assert result2.pulled >= 2
+    assert result2.pulled >= 3
 
     us = laptop2_store.user_state("sparky-idea-gauss")
     assert us.status == "kept"
@@ -112,8 +113,8 @@ def test_ipad_web_edit_reaches_laptop_via_cloud(tmp_path, live_cloud_server):
     with httpx.Client(base_url=url) as client:
         client.post("/login", data={"password": "pw", "next": "/"})
         r = client.post(
-            "/record/sparky-idea-gauss/status",
-            data={"status": "parked", "from_tile": "1"},
+            "/record/sparky-idea-gauss/save",
+            data={"status": "parked", "notes": "", "from_tile": "2"},
         )
         assert r.status_code == 303
 

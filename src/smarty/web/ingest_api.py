@@ -29,8 +29,13 @@ from smarty.importer import (
     save_cache,
     update_idea_advice_text,
 )
+from smarty.journal import now_iso
 from smarty.version import CATEGORIES_ORDER
 from smarty.web.auth import check_ingest_token
+
+# rows_for_buffer lives under smarty.ui but has no PySide6/Qt import of its
+# own (see smarty/web/app.py's note on this same import) -- safe here too.
+from smarty.ui.view_model import rows_for_buffer
 
 router = APIRouter(prefix="/api/ingest")
 
@@ -183,6 +188,41 @@ def schema(request: Request):
                 "expected_revision is always rejected (409), never silently applied out of order, so "
                 "two concurrent updates to the same id can't clobber each other unnoticed.",
             ],
+        },
+        "pull_buffer_channel": {
+            "purpose": "The actual transfer mechanism. Rudy keeps ideas in the web UI; kept ideas sit "
+            "in 'Buffered ideas waiting to be sent to Grok-Bots' until Rudy tells you to come check it "
+            "-- Smarty itself never pushes anything out on its own initiative. Call this when Rudy "
+            "says to check the buffer.",
+            "endpoint": "GET /api/ingest/pull-buffer",
+            "auth": "Authorization: Bearer <same SMARTY_INGEST_TOKEN>",
+            "side_effect": "Every record returned by this call is archived (moved from the buffer into "
+            "'Rudy's collection of actionable ideas') as part of the same call. This is a consuming "
+            "read, unlike every other GET in this API -- calling it twice in a row normally returns "
+            "data the first time and an empty list the second time, because the first call already "
+            "archived everything.",
+            "response_shape": {
+                "records": [
+                    {
+                        "id": "sparky-idea-<slug>",
+                        "title": "...",
+                        "categories": ["..."],
+                        "summary": "...",
+                        "implementation_advice": {"kind": "...", "text": "..."},
+                        "notes": "Rudy's own text explaining why this was kept -- may be blank",
+                    }
+                ],
+                "pulled_at": "ISO timestamp of this pull, same value now stamped on every record "
+                "returned",
+            },
+            "empty_buffer": "An empty buffer is not an error -- returns {\"records\": [], \"pulled_at\": "
+            "...} and archives nothing.",
+            "safety": "Nothing is ever lost by this call, including on a dropped connection after a "
+            "successful pull: an archived record stays fully readable afterward via Rudy's web UI "
+            "('Rudy's collection of actionable ideas', grouped by category then chronologically) or by "
+            "asking Rudy to check there. If you're ever unsure whether a pull actually reached you, "
+            "that's where to look rather than re-pulling blindly -- a second pull will come back empty "
+            "for anything already archived, not re-send it.",
         },
         "reverse_channel": {
             "endpoint": "GET /api/feedback",
@@ -340,3 +380,42 @@ def update_advice(request: Request, body: AdviceUpdateBody):
         "content_revision": updated["content_revision"],
         "implementation_advice": updated["data"]["implementation_advice"],
     }
+
+
+@router.get("/pull-buffer")
+def pull_buffer(request: Request):
+    """Rudy's "ask Leo to go check the buffer" action, from Leo's side:
+    returns every currently-buffered idea (kept, not yet archived) with
+    enough context to act on (title, categories, summary, advice, Rudy's
+    notes), and archives all of them as a side effect of this call --
+    Smarty never pushes anything on its own; this is the only way an idea
+    leaves the buffer. Calling this with an empty buffer is a harmless
+    no-op (returns an empty list, archives nothing).
+
+    Nothing is lost if the response doesn't make it back to the caller: an
+    archived idea stays fully readable afterward (via this same endpoint's
+    archive, or the web UI's "Rudy's collection of actionable ideas"), so
+    a dropped connection after a successful pull never means the data is
+    gone -- just that it already moved from buffer to archive."""
+    _require_token(request)
+    store = request.app.state.store
+    rows = rows_for_buffer(store.catalog, store)
+
+    timestamp = now_iso()
+    out = []
+    for row in rows:
+        idea = row.record
+        us = store.user_state(row.content_id)
+        out.append(
+            {
+                "id": idea.id,
+                "title": idea.title,
+                "categories": list(idea.categories),
+                "summary": idea.summary,
+                "implementation_advice": dict(idea.implementation_advice),
+                "notes": us.notes,
+            }
+        )
+        store.set_transferred_at(row.content_id, timestamp)
+
+    return {"records": out, "pulled_at": timestamp}

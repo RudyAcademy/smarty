@@ -49,7 +49,7 @@ class Store:
 
     def user_state(self, content_id: str) -> UserState:
         us = UserState(content_id=content_id)
-        for field_name in ("status", "notes", "practical_steps"):
+        for field_name in ("status", "notes", "practical_steps", "transferred_at"):
             state = self._states.get((content_id, field_name))
             if state is None:
                 continue
@@ -65,6 +65,8 @@ class Store:
                     us.notes = value
                 elif field_name == "practical_steps" and value is not None:
                     us.practical_steps = value
+                elif field_name == "transferred_at" and value is not None:
+                    us.transferred_at = value
         return us
 
     def current_heads(self, content_id: str, field_name: str) -> tuple[str, ...]:
@@ -91,13 +93,22 @@ class Store:
     def set_status(self, content_id: str, status: str) -> Operation:
         if status not in STATUSES:
             raise ValueError(f"unknown status: {status!r}")
-        return self._apply(content_id, "status", status)
+        op = self._apply(content_id, "status", status)
+        if status == "kept":
+            # Every (re-)confirmation as kept re-enters the buffer, even if
+            # it was already archived before -- a fresh "kept" decision is
+            # meaningfully new information for Grok-bot to see again.
+            self._apply(content_id, "transferred_at", "")
+        return op
 
     def set_notes(self, content_id: str, notes: str) -> Operation:
         return self._apply(content_id, "notes", notes)
 
     def set_practical_steps(self, content_id: str, text: str) -> Operation:
         return self._apply(content_id, "practical_steps", text)
+
+    def set_transferred_at(self, content_id: str, timestamp: str) -> Operation:
+        return self._apply(content_id, "transferred_at", timestamp)
 
     def merge_remote_ops(self, remote_ops: list[Operation]) -> None:
         """Merge operations read from the shared journal into the local view."""

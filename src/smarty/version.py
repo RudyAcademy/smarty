@@ -29,3 +29,12 @@ STATUS_VIEWS_ORDER = [
     "park_it_for_later",
     "rejected_recoverable",
 ]
+
+# Web-app-only bucket labels (desktop keeps its own simpler "Rudy's
+# collection" = kept, undifferentiated by buffer/archive -- these are
+# additive, new names used only by smarty.web.app, not a rename of the
+# shared STATUS_VIEW_* maps above).
+WEB_BUFFER_LABEL = "Buffered ideas waiting to be sent to Grok-Bots"
+WEB_PARKED_LABEL = "Ideas Parked worth reviewing"
+WEB_REJECTED_LABEL = "Rejected (recoverable)"
+WEB_ARCHIVE_LABEL = "Rudy's collection of actionable ideas"

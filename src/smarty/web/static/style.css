@@ -46,6 +46,8 @@ main { padding: 12px 14px 60px; max-width: 720px; margin: 0 auto; }
   font-size: 0.9em;
   margin-bottom: 14px;
 }
+.banner.error { background: #4a1d1d; border-color: #7a3a3a; color: #ffd0d0; }
+.banner.info { background: #1a3350; border-color: #2a5a8a; color: #cfe4ff; }
 .tile-list, .record-list { list-style: none; margin: 0; padding: 0; }
 .tile-list li, .record-list li { margin-bottom: 8px; }
 .tile-list a, .record-list a {

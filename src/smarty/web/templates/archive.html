@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} - Smarty{% endblock %}
+{% block header_center %}
+  <a href="/" class="btn">&larr; Back to All tiles</a>
+{% endblock %}
+{% block content %}
+  <h1 style="font-size:1.1em;">{{ label }}</h1>
+  {% if not groups %}
+    <p style="color:#888;">Nothing archived yet -- nothing has been pulled by Grok-bot so far.</p>
+  {% endif %}
+  {% for group in groups %}
+    <h2 style="font-size:1em; color: var(--text-dim); margin: 18px 0 8px;">{{ group.label }}</h2>
+    <ul class="record-list">
+      {% for row in group.rows %}
+        <li>
+          <a href="/record/{{ row.content_id }}?from_tile=archive">
+            <span class="status-badge status-{{ row.status }}">{{ row.status }}</span>
+            {{ row.title }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endfor %}
+{% endblock %}

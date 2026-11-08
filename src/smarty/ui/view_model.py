@@ -33,6 +33,7 @@ class RecordRow:
     bot: str | None
     period_sort_key: tuple
     status: str
+    transferred_at: str
     record: object
 
 
@@ -48,6 +49,7 @@ def _all_rows(catalog: Catalog, store: Store) -> list[RecordRow]:
                 bot=(idea.originating_bots[0] if idea.originating_bots else None),
                 period_sort_key=idea.received_period.sort_key(),
                 status=us.status,
+                transferred_at=us.transferred_at,
                 record=idea,
             )
         )
@@ -61,6 +63,7 @@ def _all_rows(catalog: Catalog, store: Store) -> list[RecordRow]:
                 bot=rec.bot,
                 period_sort_key=rec.received_period.sort_key(),
                 status=us.status,
+                transferred_at=us.transferred_at,
                 record=rec,
             )
         )
@@ -86,6 +89,17 @@ def rows_for_category(
 def rows_for_status_view(catalog: Catalog, store: Store, view_key: str) -> list[RecordRow]:
     status = STATUS_VIEW_TO_STATUS[view_key]
     return [r for r in _all_rows(catalog, store) if r.status == status]
+
+
+def rows_for_buffer(catalog: Catalog, store: Store) -> list[RecordRow]:
+    """Kept, not yet pulled/archived by Grok-bot -- "actionable" in Rudy's
+    terms. Parked and rejected never appear here, by design."""
+    return [r for r in _all_rows(catalog, store) if r.status == "kept" and not r.transferred_at]
+
+
+def rows_for_archive(catalog: Catalog, store: Store) -> list[RecordRow]:
+    """Kept, already pulled/archived by Grok-bot."""
+    return [r for r in _all_rows(catalog, store) if r.status == "kept" and r.transferred_at]
 
 
 def filter_rows(rows: list[RecordRow], *, search: str = "", bot: str | None = None, status: str | None = None,

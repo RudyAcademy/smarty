@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ tile_label }} - Smarty{% endblock %}
+{% block header_center %}
+  <a href="/" class="btn">&larr; Back to All tiles</a>
+{% endblock %}
 {% block content %}
-  <p><a href="/">&larr; All tiles</a></p>
   <h1 style="font-size:1.1em;">{{ tile_label }}</h1>
   <form method="get" action="/tile/{{ tile_index }}">
     <input class="search-box" type="search" name="q" value="{{ query }}" placeholder="Search title, id, summary, bot, notes...">

@@ -212,11 +212,26 @@ class UserState:
     status: str = "unreviewed"
     notes: str = ""
     practical_steps: str = ""
+    # Blank = not yet transferred to Grok-bot; an ISO timestamp = archived at
+    # that time by the pull-buffer endpoint. Cleared (reset to blank) every
+    # time status is (re-)set to "kept", so a re-kept idea re-enters the
+    # buffer instead of silently staying archived.
+    transferred_at: str = ""
     # Fields with unresolved conflicting values: field_name -> list of (value, device_label, event_time)
     conflicts: dict = field(default_factory=dict)
 
     def is_conflicted(self, field_name: str) -> bool:
         return field_name in self.conflicts and len(self.conflicts[field_name]) > 1
+
+    @property
+    def is_buffered(self) -> bool:
+        """Kept, and not yet pulled/archived by Grok-bot."""
+        return self.status == "kept" and not self.transferred_at
+
+    @property
+    def is_archived(self) -> bool:
+        """Kept, and already pulled/archived by Grok-bot."""
+        return self.status == "kept" and bool(self.transferred_at)
 
 
 def _require_fields(data: dict, required: tuple[str, ...], kind: str) -> None:

@@ -71,12 +71,19 @@ def test_ingest_adds_new_idea_and_shows_up_in_tile(client):
     assert body["added"] == ["sparky-idea-grokbot-1"]
 
     _login(client)
-    r = client.get("/tile/1")  # Growth and enrolment
+    r = client.get("/tile/2")  # Growth and enrolment
     assert "Grok-bot idea" in r.text
 
 
 def _login(client):
     client.post("/login", data={"password": "testpass123", "next": "/"}, follow_redirects=False)
+
+
+def _save(client, content_id, status, notes="", from_tile="2"):
+    return client.post(
+        f"/record/{content_id}/save",
+        data={"status": status, "notes": notes, "from_tile": from_tile},
+    )
 
 
 def test_ingest_rejects_invalid_category(client):
@@ -106,7 +113,7 @@ def test_repeated_submission_of_same_id_does_not_duplicate(client):
     assert r2.json()["no_op"] is True
 
     _login(client)
-    r = client.get("/tile/1")
+    r = client.get("/tile/2")
     assert r.text.count("Grok-bot idea") == 1
 
 
@@ -115,13 +122,7 @@ def test_ingest_preserves_existing_notes_and_status_on_resubmission(client):
     client.post("/api/ingest", json={"ideas": [idea]}, headers=AUTH)
 
     _login(client)
-    client.post(
-        "/record/sparky-idea-grokbot-1/notes", data={"notes": "worth doing", "from_tile": "1"}
-    )
-    client.post(
-        "/record/sparky-idea-grokbot-1/status",
-        data={"status": "kept", "from_tile": "1"},
-    )
+    _save(client, "sparky-idea-grokbot-1", "kept", "worth doing")
 
     # Grok-bot resubmits the same idea later (e.g. a revised wording) at a higher revision.
     revised = _new_idea()
@@ -133,7 +134,7 @@ def test_ingest_preserves_existing_notes_and_status_on_resubmission(client):
     )
     assert r.json()["updated"] == ["sparky-idea-grokbot-1"]
 
-    r = client.get("/record/sparky-idea-grokbot-1?from_tile=1")
+    r = client.get("/record/sparky-idea-grokbot-1?from_tile=2")
     assert "Revised wording from Grok-bot." in r.text
     assert "worth doing" in r.text  # notes survived
     assert "kept" in r.text.lower()  # status survived
@@ -162,7 +163,7 @@ def test_ingest_with_distinct_summary_and_advice_shows_both_on_page(client):
     client.post("/api/ingest", json={"ideas": [idea]}, headers=AUTH)
 
     _login(client)
-    r = client.get("/record/sparky-idea-distinct-content?from_tile=1")
+    r = client.get("/record/sparky-idea-distinct-content?from_tile=2")
     assert "A genuinely different one-line summary." in r.text
     assert "A much longer, specific bot suggestion with real detail." in r.text
 
@@ -171,11 +172,11 @@ def test_freshly_ingested_idea_shows_new_badge(client):
     client.post("/api/ingest", json={"ideas": [_new_idea()]}, headers=AUTH)
     _login(client)
 
-    r = client.get("/tile/1")
+    r = client.get("/tile/2")
     assert 'class="is-new"' in r.text
     assert "NEW" in r.text
 
-    r = client.get("/record/sparky-idea-grokbot-1?from_tile=1")
+    r = client.get("/record/sparky-idea-grokbot-1?from_tile=2")
     assert "NEW" in r.text
 
 
@@ -192,14 +193,15 @@ def _link_snippet(html: str, content_id: str) -> str:
 def test_reviewing_idea_removes_new_badge(client):
     client.post("/api/ingest", json={"ideas": [_new_idea()]}, headers=AUTH)
     _login(client)
-    client.post(
-        "/record/sparky-idea-grokbot-1/status", data={"status": "kept", "from_tile": "1"}
-    )
+    _save(client, "sparky-idea-grokbot-1", "kept")
 
-    r = client.get("/tile/1")
+    # kept records leave the category tile entirely and live in the buffer now
+    r = client.get("/tile/2")
+    assert "sparky-idea-grokbot-1" not in r.text
+
+    r = client.get("/tile/0")  # buffer
     snippet = _link_snippet(r.text, "sparky-idea-grokbot-1")
     assert "is-new" not in snippet
-    assert "status-kept" in snippet  # the status badge still shows, just not NEW
 
 
 def test_old_unreviewed_idea_does_not_show_new_badge(client, tmp_path):
@@ -218,7 +220,7 @@ def test_old_unreviewed_idea_does_not_show_new_badge(client, tmp_path):
     cache_path.write_text(json_mod.dumps(cache), encoding="utf-8")
 
     _login(client)
-    r = client.get("/tile/1")
+    r = client.get("/tile/2")
     snippet = _link_snippet(r.text, "sparky-idea-grokbot-1")
     assert "is-new" not in snippet
     assert "status-unreviewed" in snippet  # still unreviewed, just not flagged NEW anymore
@@ -258,7 +260,7 @@ def test_advice_update_succeeds_and_returns_saved_text_and_new_revision(client):
     assert body["implementation_advice"]["text"] == "Expanded advice from Leo."
 
     _login(client)
-    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    r = client.get("/record/sparky-idea-gauss?from_tile=2")
     assert "Expanded advice from Leo." in r.text
     assert "Gauss contest preparation" in r.text  # title untouched
 
@@ -292,10 +294,7 @@ def test_advice_update_rejects_blank_text(client):
 
 def test_advice_update_preserves_notes_status_and_other_fields(client):
     _login(client)
-    client.post("/record/sparky-idea-gauss/status", data={"status": "kept", "from_tile": "1"})
-    client.post(
-        "/record/sparky-idea-gauss/notes", data={"notes": "Worth it for Grade 6.", "from_tile": "1"}
-    )
+    _save(client, "sparky-idea-gauss", "kept", "Worth it for Grade 6.")
 
     r = client.post(
         "/api/ingest/advice",
@@ -304,7 +303,7 @@ def test_advice_update_preserves_notes_status_and_other_fields(client):
     )
     assert r.status_code == 200
 
-    r = client.get("/record/sparky-idea-gauss?from_tile=1")
+    r = client.get("/record/sparky-idea-gauss?from_tile=2")
     assert "Worth it for Grade 6." in r.text  # notes survived
     assert "kept" in r.text.lower()  # status survived
     assert "cemc.uwaterloo.ca" in r.text  # original source URL untouched
@@ -350,3 +349,83 @@ def test_retry_after_timeout_scenario_second_identical_call_is_safely_rejected(c
     current = client.get("/api/ingest/revisions", headers=AUTH).json()["records"]
     gauss = next(x for x in current if x["id"] == "sparky-idea-gauss")
     assert gauss["content_revision"] == 2
+
+
+def test_pull_buffer_requires_token(client):
+    assert client.get("/api/ingest/pull-buffer").status_code == 401
+
+
+def test_pull_buffer_empty_when_nothing_kept(client):
+    r = client.get("/api/ingest/pull-buffer", headers=AUTH)
+    assert r.status_code == 200
+    assert r.json()["records"] == []
+
+
+def test_pull_buffer_returns_kept_idea_with_notes_and_archives_it(client):
+    _login(client)
+    _save(client, "sparky-idea-gauss", "kept", "Worth exploring for Grade 6.")
+
+    r = client.get("/api/ingest/pull-buffer", headers=AUTH)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["records"]) == 1
+    entry = body["records"][0]
+    assert entry["id"] == "sparky-idea-gauss"
+    assert entry["title"] == "Gauss contest preparation"
+    assert entry["notes"] == "Worth exploring for Grade 6."
+    assert "Growth and enrolment" in entry["categories"]
+    assert "pulled_at" in body
+
+    # archived as a side effect: a second pull comes back empty
+    r2 = client.get("/api/ingest/pull-buffer", headers=AUTH)
+    assert r2.json()["records"] == []
+
+
+def test_pull_buffer_only_includes_kept_not_parked_or_rejected(client):
+    _login(client)
+    _save(client, "sparky-idea-gauss", "kept")
+    _save(client, "sparky-idea-holiday-gifts", "parked")
+    _save(client, "sparky-idea-employer-partnerships", "rejected")
+
+    r = client.get("/api/ingest/pull-buffer", headers=AUTH)
+    ids = {e["id"] for e in r.json()["records"]}
+    assert ids == {"sparky-idea-gauss"}
+
+
+def test_pulled_idea_moves_from_buffer_tile_to_archive_in_the_web_ui(client):
+    _login(client)
+    _save(client, "sparky-idea-gauss", "kept", "Worth it.")
+
+    r = client.get("/tile/0")  # buffer
+    assert "Gauss" in r.text
+
+    client.get("/api/ingest/pull-buffer", headers=AUTH)
+
+    r = client.get("/tile/0")
+    assert "Gauss" not in r.text
+
+    r = client.get("/archive")
+    assert "Gauss" in r.text
+    assert "Growth and enrolment" in r.text  # grouped under its category heading
+
+
+def test_re_keeping_a_pulled_idea_puts_it_back_in_the_buffer(client):
+    _login(client)
+    _save(client, "sparky-idea-gauss", "kept", "Worth it.")
+    client.get("/api/ingest/pull-buffer", headers=AUTH)
+
+    r = client.get("/archive")
+    assert "Gauss" in r.text
+
+    # Rudy edits the note on the already-archived idea and saves again,
+    # still "kept" -- this is a new decision worth re-reporting.
+    _save(client, "sparky-idea-gauss", "kept", "Actually, even better for Grade 7.")
+
+    r = client.get("/tile/0")  # buffer
+    assert "Gauss" in r.text
+    r = client.get("/archive")
+    assert "Gauss" not in r.text
+
+    r = client.get("/api/ingest/pull-buffer", headers=AUTH)
+    entry = r.json()["records"][0]
+    assert entry["notes"] == "Actually, even better for Grade 7."

@@ -1,7 +1,14 @@
 from smarty.paths import SmartyPaths, ensure_local_dirs
 from smarty.seed import build_catalog
 from smarty.store import Store
-from smarty.ui.view_model import filter_rows, rows_for_category, rows_for_status_view, sort_rows
+from smarty.ui.view_model import (
+    filter_rows,
+    rows_for_archive,
+    rows_for_buffer,
+    rows_for_category,
+    rows_for_status_view,
+    sort_rows,
+)
 
 
 def _catalog():
@@ -115,3 +122,42 @@ def test_filter_by_bot_and_status(tmp_path):
     rows = rows_for_category(catalog, store, "Growth and enrolment")
     assert {r.content_id for r in filter_rows(rows, bot="Bunny")} == {"idea-a"}
     assert {r.content_id for r in filter_rows(rows, status="parked")} == {"idea-a"}
+
+
+def test_kept_idea_appears_in_buffer_not_archive(tmp_path):
+    catalog = _catalog()
+    store = _store(tmp_path, catalog)
+    store.set_status("idea-a", "kept")
+    assert {r.content_id for r in rows_for_buffer(catalog, store)} == {"idea-a"}
+    assert rows_for_archive(catalog, store) == []
+
+
+def test_archiving_moves_idea_from_buffer_to_archive(tmp_path):
+    catalog = _catalog()
+    store = _store(tmp_path, catalog)
+    store.set_status("idea-a", "kept")
+    store.set_transferred_at("idea-a", "2026-11-08T00:00:00+00:00")
+    assert rows_for_buffer(catalog, store) == []
+    assert {r.content_id for r in rows_for_archive(catalog, store)} == {"idea-a"}
+
+
+def test_re_keeping_an_archived_idea_returns_it_to_the_buffer(tmp_path):
+    catalog = _catalog()
+    store = _store(tmp_path, catalog)
+    store.set_status("idea-a", "kept")
+    store.set_transferred_at("idea-a", "2026-11-08T00:00:00+00:00")
+    assert {r.content_id for r in rows_for_archive(catalog, store)} == {"idea-a"}
+
+    store.set_status("idea-a", "parked")
+    store.set_status("idea-a", "kept")  # set_status("kept") auto-clears transferred_at
+    assert {r.content_id for r in rows_for_buffer(catalog, store)} == {"idea-a"}
+    assert rows_for_archive(catalog, store) == []
+
+
+def test_parked_and_rejected_never_appear_in_buffer_or_archive(tmp_path):
+    catalog = _catalog()
+    store = _store(tmp_path, catalog)
+    store.set_status("idea-a", "parked")
+    store.set_status("idea-b", "rejected")
+    assert rows_for_buffer(catalog, store) == []
+    assert rows_for_archive(catalog, store) == []

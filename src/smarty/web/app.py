@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -20,7 +20,15 @@ from starlette.status import HTTP_303_SEE_OTHER
 
 from smarty.importer import record_first_seen_map
 from smarty.models import STATUSES
-from smarty.version import APP_NAME, CATEGORIES_ORDER, NEW_IDEA_WINDOW_DAYS, STATUS_VIEWS_ORDER
+from smarty.version import (
+    APP_NAME,
+    CATEGORIES_ORDER,
+    NEW_IDEA_WINDOW_DAYS,
+    WEB_ARCHIVE_LABEL,
+    WEB_BUFFER_LABEL,
+    WEB_PARKED_LABEL,
+    WEB_REJECTED_LABEL,
+)
 from smarty.web.auth import require_login, web_password
 from smarty.web.feedback_api import router as feedback_router
 from smarty.web.ingest_api import router as ingest_router
@@ -30,10 +38,14 @@ from smarty.web.webstore import build_web_store
 # view_model.py lives under smarty.ui but has no PySide6/Qt import of its
 # own, and importing one submodule never triggers its package siblings
 # (smarty/ui/__init__.py is empty) -- so this does not pull Qt into the
-# web process.
+# web process. Note: rows_for_category/rows_for_status_view/STATUS_VIEW_*
+# are shared with the desktop app and are NOT changed here -- the web-only
+# buffer/archive/unreviewed-only-categories behavior is layered on top in
+# this file instead, so desktop keeps its existing simpler behavior.
 from smarty.ui.view_model import (
-    STATUS_VIEW_LABELS,
     filter_rows,
+    rows_for_archive,
+    rows_for_buffer,
     rows_for_category,
     rows_for_status_view,
     sort_rows,
@@ -58,25 +70,36 @@ app.include_router(sync_router)
 app.include_router(ingest_router)
 app.include_router(feedback_router)
 
-TILES = [("category", label) for label in CATEGORIES_ORDER] + [
-    ("status_view", key) for key in STATUS_VIEWS_ORDER
-]
+# Web-only tile order: the buffer is the very first button in the menu,
+# then the 7 content categories (unreviewed-only here -- once an idea is
+# kept/parked/rejected it leaves these lists entirely and lives only in
+# its bucket), then Parked and Rejected. The archive ("Rudy's collection
+# of actionable ideas") is deliberately NOT one of these indexed tiles --
+# it needs grouped-by-category rendering, so it gets its own /archive
+# route and template instead.
+TILES = (
+    [("buffer", WEB_BUFFER_LABEL)]
+    + [("category", label) for label in CATEGORIES_ORDER]
+    + [("parked", WEB_PARKED_LABEL), ("rejected", WEB_REJECTED_LABEL)]
+)
 
 
 def _tile_label(index: int) -> str:
-    kind, key = TILES[index]
-    if kind == "category":
-        return key
-    return STATUS_VIEW_LABELS[key]
+    return TILES[index][1]
 
 
 def _rows_for_tile(index: int):
-    kind, key = TILES[index]
+    kind, label = TILES[index]
     store = app.state.store
     catalog = store.catalog
+    if kind == "buffer":
+        return rows_for_buffer(catalog, store)
     if kind == "category":
-        return rows_for_category(catalog, store, key)
-    return rows_for_status_view(catalog, store, key)
+        rows = rows_for_category(catalog, store, label)
+        return [r for r in rows if r.status == "unreviewed"]
+    if kind == "parked":
+        return rows_for_status_view(catalog, store, "park_it_for_later")
+    return rows_for_status_view(catalog, store, "rejected_recoverable")
 
 
 def _is_new(content_id: str, status: str, first_seen_map: dict) -> bool:
@@ -93,6 +116,18 @@ def _is_new(content_id: str, status: str, first_seen_map: dict) -> bool:
     except ValueError:
         return False
     return datetime.now(timezone.utc) - seen_at <= timedelta(days=NEW_IDEA_WINDOW_DAYS)
+
+
+def _back_url(from_tile: str) -> str:
+    if from_tile == "archive":
+        return "/archive"
+    return f"/tile/{from_tile}"
+
+
+def _status_conflict_text(us) -> str | None:
+    if not us.is_conflicted("status"):
+        return None
+    return ", ".join(f"{v} ({dev})" for v, dev, _ in us.conflicts["status"])
 
 
 def _first_seen_map() -> dict:
@@ -186,13 +221,19 @@ def index(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
+    store = app.state.store
     first_seen = _first_seen_map()
     tiles = []
     for i in range(len(TILES)):
         rows = _rows_for_tile(i)
         new_count = sum(1 for r in rows if _is_new(r.content_id, r.status, first_seen))
         tiles.append({"index": i, "label": _tile_label(i), "count": len(rows), "new_count": new_count})
-    return templates.TemplateResponse(request, "index.html", {"logged_in": True, "tiles": tiles})
+    archive_count = len(rows_for_archive(store.catalog, store))
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"logged_in": True, "tiles": tiles, "archive_label": WEB_ARCHIVE_LABEL, "archive_count": archive_count},
+    )
 
 
 @app.get("/tile/{tile_index}")
@@ -220,8 +261,35 @@ def tile_view(request: Request, tile_index: int, q: str = ""):
     )
 
 
+@app.get("/archive")
+def archive_view(request: Request):
+    """Rudy's collection of actionable ideas -- kept ideas already pulled
+    by Grok-bot, grouped by category then newest-received-first within
+    each category (same tie-break rule as everywhere else: title, then
+    id, when the period matches)."""
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    store = app.state.store
+    rows = rows_for_archive(store.catalog, store)
+
+    groups: list[dict] = []
+    for label in CATEGORIES_ORDER:
+        group_rows = [r for r in rows if label in getattr(r.record, "categories", ())]
+        if group_rows:
+            groups.append({"label": label, "rows": sort_rows(group_rows, newest_first=True)})
+
+    return templates.TemplateResponse(
+        request,
+        "archive.html",
+        {"logged_in": True, "label": WEB_ARCHIVE_LABEL, "groups": groups},
+    )
+
+
 @app.get("/record/{content_id}")
-def record_view(request: Request, content_id: str, from_tile: int = 0, reject_armed: bool = False):
+def record_view(
+    request: Request, content_id: str, from_tile: str = "0", saved: bool = False, error: str = ""
+):
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -230,9 +298,6 @@ def record_view(request: Request, content_id: str, from_tile: int = 0, reject_ar
     if record is None:
         return RedirectResponse(url="/", status_code=HTTP_303_SEE_OTHER)
     us = store.user_state(content_id)
-    status_conflict = None
-    if us.is_conflicted("status"):
-        status_conflict = ", ".join(f"{v} ({dev})" for v, dev, _ in us.conflicts["status"])
     is_new = _is_new(content_id, us.status, _first_seen_map())
     return templates.TemplateResponse(
         request,
@@ -241,44 +306,85 @@ def record_view(request: Request, content_id: str, from_tile: int = 0, reject_ar
             "logged_in": True,
             "record": record,
             "from_tile": from_tile,
+            "back_url": _back_url(from_tile),
             "statuses": STATUSES,
             "current_status": us.status,
-            "status_conflict": status_conflict,
+            "status_conflict": _status_conflict_text(us),
             "notes": us.notes,
-            "practical_steps": us.practical_steps,
-            "reject_armed": reject_armed,
+            "transferred_at": us.transferred_at,
             "is_new": is_new,
+            "saved": saved,
+            "error": error or None,
         },
     )
 
 
-@app.post("/record/{content_id}/status")
-def set_status(
+@app.post("/record/{content_id}/save")
+def save_record(
     request: Request,
     content_id: str,
     status: str = Form(...),
-    from_tile: int = Form(0),
-    confirm: str = Form(""),
+    notes: str = Form(""),
+    from_tile: str = Form("0"),
 ):
+    """Unified save: status and notes submit together, exactly once, so a
+    status click can never discard an unsaved note (the old separate
+    /status and /notes endpoints made that possible via an intermediate
+    reload -- this replaces both). The two-click reject confirmation now
+    happens client-side in record.html's JS before the form ever submits,
+    so by the time this runs, "rejected" already means confirmed.
+
+    Validation: notes can't be saved while status is (or would stay)
+    "unreviewed" -- re-renders the same page with the typed notes still
+    in the box and an error banner, rather than redirecting (a redirect
+    would reload from the journal and lose the unsaved text)."""
     redirect = require_login(request)
     if redirect:
         return redirect
+    if status not in STATUSES:
+        raise HTTPException(status_code=400, detail=f"unknown status: {status!r}")
+
     store = app.state.store
-    if status == "rejected" and confirm != "1":
-        return RedirectResponse(
-            url=f"/record/{content_id}?from_tile={from_tile}&reject_armed=1", status_code=HTTP_303_SEE_OTHER
+    record = _record_view(content_id)
+    if record is None:
+        return RedirectResponse(url="/", status_code=HTTP_303_SEE_OTHER)
+    us = store.user_state(content_id)
+
+    if notes.strip() and status == "unreviewed":
+        is_new = _is_new(content_id, us.status, _first_seen_map())
+        return templates.TemplateResponse(
+            request,
+            "record.html",
+            {
+                "logged_in": True,
+                "record": record,
+                "from_tile": from_tile,
+                "back_url": _back_url(from_tile),
+                "statuses": STATUSES,
+                "current_status": us.status,
+                "status_conflict": _status_conflict_text(us),
+                "notes": notes,
+                "transferred_at": us.transferred_at,
+                "is_new": is_new,
+                "saved": False,
+                "error": "Please choose kept, parked, or rejected before saving a note.",
+            },
+            status_code=422,
         )
-    store.set_status(content_id, status)
-    return RedirectResponse(url=f"/record/{content_id}?from_tile={from_tile}", status_code=HTTP_303_SEE_OTHER)
 
+    if notes != us.notes:
+        store.set_notes(content_id, notes)
+    # Always go through set_status when the saved state is "kept" -- even
+    # if it already was -- because Store.set_status is what clears
+    # transferred_at. Editing notes on an already-archived kept idea and
+    # saving is a new, worth-reporting decision, so it should re-enter the
+    # buffer, not stay silently archived.
+    if status != us.status or status == "kept":
+        store.set_status(content_id, status)
 
-@app.post("/record/{content_id}/notes")
-def set_notes(request: Request, content_id: str, notes: str = Form(""), from_tile: int = Form(0)):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-    app.state.store.set_notes(content_id, notes)
-    return RedirectResponse(url=f"/record/{content_id}?from_tile={from_tile}", status_code=HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=f"/record/{content_id}?from_tile={from_tile}&saved=1", status_code=HTTP_303_SEE_OTHER
+    )
 
 
 @app.post("/record/{content_id}/steps")

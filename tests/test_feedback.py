@@ -31,6 +31,13 @@ def _login(client):
     client.post("/login", data={"password": "testpass123", "next": "/"}, follow_redirects=False)
 
 
+def _save(client, content_id, status, notes="", from_tile="2"):
+    return client.post(
+        f"/record/{content_id}/save",
+        data={"status": status, "notes": notes, "from_tile": from_tile},
+    )
+
+
 def test_feedback_requires_token(client):
     r = client.get("/api/feedback")
     assert r.status_code == 401
@@ -50,13 +57,7 @@ def test_feedback_includes_all_when_requested(client):
 
 def test_feedback_shows_status_and_notes_after_review(client):
     _login(client)
-    client.post(
-        "/record/sparky-idea-gauss/status", data={"status": "kept", "from_tile": "1"}
-    )
-    client.post(
-        "/record/sparky-idea-gauss/notes",
-        data={"notes": "Worth exploring for Grade 6.", "from_tile": "1"},
-    )
+    _save(client, "sparky-idea-gauss", "kept", "Worth exploring for Grade 6.")
 
     r = client.get("/api/feedback", headers=AUTH)
     records = r.json()["records"]
@@ -68,12 +69,11 @@ def test_feedback_shows_status_and_notes_after_review(client):
     assert entry["kind"] == "idea"
 
 
-def test_feedback_notes_only_without_status_change_still_counts(client):
+def test_feedback_shows_parked_idea_with_notes(client):
+    # Notes now require a real status (parked here, not kept) -- any
+    # non-unreviewed status with notes shows up in feedback, not just kept.
     _login(client)
-    client.post(
-        "/record/sparky-idea-holiday-gifts/notes",
-        data={"notes": "Maybe next year.", "from_tile": "1"},
-    )
+    _save(client, "sparky-idea-holiday-gifts", "parked", "Maybe next year.")
     r = client.get("/api/feedback", headers=AUTH)
     ids = {e["id"] for e in r.json()["records"]}
     assert "sparky-idea-holiday-gifts" in ids
@@ -81,11 +81,8 @@ def test_feedback_notes_only_without_status_change_still_counts(client):
 
 def test_feedback_filter_by_status(client):
     _login(client)
-    client.post("/record/sparky-idea-gauss/status", data={"status": "kept", "from_tile": "1"})
-    client.post(
-        "/record/sparky-idea-holiday-gifts/status",
-        data={"status": "rejected", "from_tile": "1", "confirm": "1"},
-    )
+    _save(client, "sparky-idea-gauss", "kept")
+    _save(client, "sparky-idea-holiday-gifts", "rejected")
 
     r = client.get("/api/feedback?status=kept", headers=AUTH)
     ids = {e["id"] for e in r.json()["records"]}
@@ -118,14 +115,7 @@ def test_feedback_reflects_ingested_idea_round_trip(client):
     assert r.json()["added"] == ["sparky-idea-grokbot-roundtrip"]
 
     _login(client)
-    client.post(
-        "/record/sparky-idea-grokbot-roundtrip/status",
-        data={"status": "parked", "from_tile": "1"},
-    )
-    client.post(
-        "/record/sparky-idea-grokbot-roundtrip/notes",
-        data={"notes": "Revisit after exams.", "from_tile": "1"},
-    )
+    _save(client, "sparky-idea-grokbot-roundtrip", "parked", "Revisit after exams.")
 
     r = client.get("/api/feedback?status=parked", headers=AUTH)
     records = r.json()["records"]
