@@ -24,10 +24,10 @@
       {% endif %}
     {% endif %}
     {% if record.caveats %}
-      <p>{{ record.caveats | join("<br>") | safe }}</p>
+      <p>{{ record.caveats | map("e") | join("<br>") | safe }}</p>
     {% endif %}
     {% if record.cautions %}
-      <div class="cautions">{{ record.cautions | join(" &middot; ") }}</div>
+      <div class="cautions">{{ record.cautions | join(" • ") }}</div>
     {% endif %}
   </div>
 

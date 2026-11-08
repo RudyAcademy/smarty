@@ -2,9 +2,16 @@
 
 Not an account system: one password, set via the SMARTY_WEB_PASSWORD env
 var, required before any page loads. A session cookie (signed, via
-Starlette's SessionMiddleware) remembers that you entered it. The sync API
-(laptop <-> cloud) uses a separate bearer token, SMARTY_SYNC_TOKEN, checked
-per-request instead of via a browser session.
+Starlette's SessionMiddleware) remembers that you entered it.
+
+Two other, separate bearer tokens exist, each checked per-request instead
+of via a browser session, and each independently revocable:
+- SMARTY_SYNC_TOKEN -- the laptop's "Sync to cloud" button (read/write the
+  journal).
+- SMARTY_INGEST_TOKEN -- an automated submitter (e.g. Grok-bot) adding new
+  ideas via /api/ingest. Deliberately a different secret from the sync
+  token: revoking a misbehaving automated submitter should never also log
+  out the laptop's own sync.
 """
 
 from __future__ import annotations
@@ -27,6 +34,10 @@ def sync_token() -> str | None:
     return os.environ.get("SMARTY_SYNC_TOKEN")
 
 
+def ingest_token() -> str | None:
+    return os.environ.get("SMARTY_INGEST_TOKEN")
+
+
 def is_logged_in(request: Request) -> bool:
     return bool(request.session.get("authenticated"))
 
@@ -38,9 +49,16 @@ def require_login(request: Request) -> RedirectResponse | None:
     return None
 
 
-def check_sync_token(request: Request) -> bool:
-    expected = sync_token()
+def _check_bearer(request: Request, expected: str | None) -> bool:
     if not expected:
         return False
     header = request.headers.get("authorization", "")
     return header == f"Bearer {expected}"
+
+
+def check_sync_token(request: Request) -> bool:
+    return _check_bearer(request, sync_token())
+
+
+def check_ingest_token(request: Request) -> bool:
+    return _check_bearer(request, ingest_token())

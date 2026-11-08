@@ -107,16 +107,26 @@ def resolve_config_path(env: dict | None = None) -> Path:
     return Path(env["SPARKY_CONFIG"]) if env.get("SPARKY_CONFIG") else DEFAULT_LOCAL_ROOT / LEGACY_CONFIG_FILENAME
 
 
-def save_device_label(label: str, env: dict | None = None) -> None:
-    """Persist a person-typed device label into the legacy config file,
-    preserving whatever else is already there."""
+def _update_legacy_config(updates: dict, env: dict | None = None) -> None:
     config_path = resolve_config_path(env)
     config = _read_legacy_config(config_path)
-    config["device_label"] = label
+    config.update(updates)
     config_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = config_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(config, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(config_path)
+
+
+def save_device_label(label: str, env: dict | None = None) -> None:
+    """Persist a person-typed device label into the legacy config file,
+    preserving whatever else is already there."""
+    _update_legacy_config({"device_label": label}, env)
+
+
+def save_cloud_sync_config(url: str, token: str, env: dict | None = None) -> None:
+    """Persist the hosted web app's URL + sync token, preserving whatever
+    else is already in the legacy config file."""
+    _update_legacy_config({"cloud_sync_url": url, "cloud_sync_token": token}, env)
 
 
 def load_paths(env: dict | None = None) -> SmartyPaths:

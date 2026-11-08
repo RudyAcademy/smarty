@@ -213,8 +213,34 @@ Render plan — Render's free web-service tier has no persistent disk, so
 `/data` would be wiped on every redeploy/restart (the app would just
 re-seed from the bundled catalog and lose any notes/status entered since
 the last deploy). Needed on Render's dashboard once connected to a repo:
-set `SMARTY_WEB_PASSWORD` and `SMARTY_SYNC_TOKEN` as secret env vars
-(`SMARTY_SESSION_SECRET` auto-generates via the blueprint).
+set `SMARTY_WEB_PASSWORD`, `SMARTY_SYNC_TOKEN`, and `SMARTY_INGEST_TOKEN`
+as secret env vars (`SMARTY_SESSION_SECRET` auto-generates via the
+blueprint).
+
+### Automated ingestion (e.g. Grok-bot)
+
+`POST /api/ingest` lets an automated source add new ideas without a human
+in the loop, authenticated with its own `SMARTY_INGEST_TOKEN` — a secret
+deliberately separate from `SMARTY_WEB_PASSWORD` (your own browser login)
+and `SMARTY_SYNC_TOKEN` (the laptop's sync), so revoking a misbehaving bot
+never logs you out of either. `GET /api/ingest/schema` (no auth needed —
+it returns only the contract, not data) describes the exact JSON shape,
+the valid category labels, and the id-naming convention.
+
+Reuses `apply_import_batch` unchanged, so an automated submission gets the
+same guarantees a hand-import gets: duplicate ids, unknown categories, and
+invented scores are all rejected; a rejected submission applies nothing at
+all. It additionally **cannot create a new category** (the `categories`
+field is accepted by the batch format generally, but the ingest endpoint's
+request model doesn't expose it at all, and categories are independently
+checked against the fixed 7 content tiles — a status-view label like
+"Rudy's collection" is rejected too, even though it's technically in the
+same `categories.json` list). Resubmitting the same `id` later (e.g. a
+revised wording) merges by the usual revision rules rather than creating a
+duplicate, and **never touches notes or kept/parked/rejected status** on
+that id — the catalog cache and the journal are separate stores, so this
+is a structural guarantee, not something the endpoint has to special-case
+(covered by `tests/test_ingest.py::test_ingest_preserves_existing_notes_and_status_on_resubmission`).
 
 ## Imports after the seed
 
@@ -296,7 +322,7 @@ cd C:\TowerHill\Smarty
 python -m pytest tests -q
 ```
 
-**Result: 76 passed, 0 failed.** Covers: seed validation (missing fields,
+**Result: 86 passed, 0 failed.** Covers: seed validation (missing fields,
 invented scores rejected), journal conflict reduction (independent fields,
 supersession, divergent-edit conflicts kept until resolved, resolution
 clears them), store read/write round-trips, importer revision rules
@@ -323,7 +349,16 @@ that start a **real** `smarty.web.app` instance in a background thread and
 talk to it over **real HTTP** (not mocked): a laptop pushes edits and a
 second laptop pulls and sees them, a wrong token is rejected, and a
 browser-made edit (simulating the iPad) reaches a laptop that syncs
-afterward.
+afterward. Also covers `/api/ingest` (schema endpoint needs no auth,
+wrong/missing token rejected, new idea added and shows up immediately,
+invalid category rejected, a status-view label specifically rejected even
+though it's technically in the same seed list, resubmitting the same id
+doesn't duplicate, and — the one that mattered most — existing notes and
+status survive a resubmission untouched).
+
+The deployed web app uses a dark blue / white theme
+(`src/smarty/web/static/style.css`), checked visually in the browser at
+phone width, not just by the tests above (which don't assert on color).
 
 Two real bugs this project caught and fixed, both found by writing
 end-to-end checks rather than only unit tests in isolation:

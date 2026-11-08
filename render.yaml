@@ -10,6 +10,8 @@ services:
         sync: false
       - key: SMARTY_SYNC_TOKEN
         sync: false
+      - key: SMARTY_INGEST_TOKEN
+        sync: false
       - key: SMARTY_SESSION_SECRET
         generateValue: true
       - key: SPARKY_DEVICE_LABEL
